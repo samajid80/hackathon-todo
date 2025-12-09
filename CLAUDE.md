@@ -1,18 +1,84 @@
-# Claude Code Rules
+# CLAUDE.md
 
-This file is generated during init for the selected agent.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-You are an expert AI assistant specializing in Spec-Driven Development (SDD). Your primary goal is to work with the architext to build products.
+## Project Overview
 
-## Task context
+This is a **hackathon todo application** project built using the **Spec-Driven Development (SDD)** methodology with SpecKit Plus framework. The project emphasizes specification-first development with architectural decision tracking and prompt history preservation.
 
-**Your Surface:** You operate on a project level, providing guidance to users and executing development tasks via a defined set of tools.
+Always use context7 when I need code generation, setup or configuration steps, or
+library/API documentation. This means you should automatically use the Context7 MCP
+tools to resolve library id and get library docs without me having to explicitly ask.
+
+### Project Structure
+
+- `phase1/` - Python-based implementation (Python 3.13+)
+  - Minimal starter code with virtual environment
+  - Entry point: `phase1/main.py`
+- `.specify/` - SpecKit Plus framework (templates, scripts, memory)
+- `.claude/commands/` - Custom slash commands for SDD workflow
+- `specs/` - Feature specifications (created per feature)
+- `history/` - Prompt History Records (PHR) and Architecture Decision Records (ADR)
+
+## Development Commands
+
+### Running the Application
+
+**Phase 1 (Python)**:
+```bash
+cd phase1
+python main.py
+# or use the provided script:
+/home/majid/projects/hackathon-todo/scripts/run-phase1.sh
+```
+
+**Python Environment**:
+- Python version: 3.13+ (see `phase1/.python-version`)
+- Virtual environment: `phase1/.venv/`
+- Package manager: uv (via `pyproject.toml`)
+
+**Ubuntu 24.04 Setup Note**:
+Ubuntu 24.04 ships with Python 3.12 by default. To use Python 3.13:
+1. Install Python 3.13: `sudo add-apt-repository ppa:deadsnakes/ppa && sudo apt install python3.13 python3.13-venv`
+2. Recreate virtual environment with Python 3.13:
+   ```bash
+   cd phase1
+   rm -rf .venv
+   python3.13 -m venv .venv
+   source .venv/bin/activate
+   pip install uv  # or use system uv if available
+   ```
+3. Run application: `python3.13 main.py` or activate venv first: `source .venv/bin/activate && python main.py`
+
+## Spec-Driven Development Workflow
+
+This project uses a structured SDD workflow. You are an expert AI assistant specializing in this methodology. Your primary goal is to work with the architecture to build products systematically.
+
+### Available Slash Commands
+
+The project includes custom slash commands for the SDD workflow (all under `.claude/commands/`):
+
+- `/sp.specify <description>` - Create feature specification from natural language
+- `/sp.clarify` - Identify underspecified areas and ask targeted questions
+- `/sp.plan` - Generate implementation plan with architecture decisions
+- `/sp.tasks` - Generate dependency-ordered tasks from design artifacts
+- `/sp.implement` - Execute the implementation plan
+- `/sp.analyze` - Cross-artifact consistency analysis
+- `/sp.adr <title>` - Create Architecture Decision Record
+- `/sp.phr` - Create Prompt History Record
+- `/sp.constitution` - Create/update project constitution
+- `/sp.git.commit_pr` - Git workflow automation (commit and PR)
+- `/sp.checklist` - Generate custom checklists
+
+**Typical workflow**: `/sp.specify` → `/sp.clarify` → `/sp.plan` → `/sp.tasks` → `/sp.implement`
+
+## SDD Methodology Guidelines
 
 **Your Success is Measured By:**
-- All outputs strictly follow the user intent.
-- Prompt History Records (PHRs) are created automatically and accurately for every user prompt.
-- Architectural Decision Record (ADR) suggestions are made intelligently for significant decisions.
-- All changes are small, testable, and reference code precisely.
+- All outputs strictly follow user intent
+- Prompt History Records (PHRs) are created automatically and accurately for every user prompt
+- Architectural Decision Record (ADR) suggestions are made intelligently for significant decisions
+- All changes are small, testable, and reference code precisely
 
 ## Core Guarantees (Product Promise)
 
@@ -196,15 +262,44 @@ If ALL true, suggest:
 
 Wait for consent; never auto-create ADRs. Group related decisions (stacks, authentication, deployment) into one ADR when appropriate.
 
-## Basic Project Structure
+## Project Architecture
 
-- `.specify/memory/constitution.md` — Project principles
-- `specs/<feature>/spec.md` — Feature requirements
-- `specs/<feature>/plan.md` — Architecture decisions
-- `specs/<feature>/tasks.md` — Testable tasks with cases
-- `history/prompts/` — Prompt History Records
-- `history/adr/` — Architecture Decision Records
-- `.specify/` — SpecKit Plus templates and scripts
+### Feature Development Structure
 
-## Code Standards
-See `.specify/memory/constitution.md` for code quality, testing, performance, security, and architecture principles.
+Each feature follows a consistent directory structure under `specs/<N>-<feature-name>/`:
+
+- `spec.md` - Feature requirements (WHAT and WHY, no implementation details)
+- `plan.md` - Architecture decisions and technical approach (HOW)
+- `tasks.md` - Dependency-ordered implementation tasks
+- `data-model.md` - Entity definitions and relationships (optional)
+- `contracts/` - API contracts (OpenAPI/GraphQL schemas, optional)
+- `research.md` - Research findings and decisions (optional)
+- `quickstart.md` - Test scenarios and acceptance criteria (optional)
+- `checklists/` - Quality and completeness validation checklists
+
+### History Tracking
+
+All under `history/`:
+
+- `prompts/` - Prompt History Records organized by:
+  - `constitution/` - Constitution-related prompts
+  - `<feature-name>/` - Feature-specific prompts
+  - `general/` - General development prompts
+- `adr/` - Architecture Decision Records (numbered, with status tracking)
+
+### Key Principles
+
+The project constitution (`.specify/memory/constitution.md`) defines core principles. Currently it's a template - principles will be established during feature development. Typical SDD principles include:
+
+- **Specification-first**: Define WHAT before HOW
+- **Technology-agnostic specs**: No implementation details in specifications
+- **Testable requirements**: Every requirement must be verifiable
+- **Decision tracking**: Document significant architectural choices
+- **Prompt history**: Preserve full context of all AI interactions
+
+## Active Technologies
+- Python 3.13 + Python standard library (uuid, datetime, enum); pytest, ruff, mypy for testing/quality only (001-console-todo-app)
+- In-memory only (Python dict mapping UUID → Task object) (001-console-todo-app)
+
+## Recent Changes
+- 001-console-todo-app: Added Python 3.13 + Python standard library (uuid, datetime, enum); pytest, ruff, mypy for testing/quality only
