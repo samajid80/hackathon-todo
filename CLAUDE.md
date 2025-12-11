@@ -27,15 +27,49 @@ tools to resolve library id and get library docs without me having to explicitly
 **Phase 1 (Python)**:
 ```bash
 cd phase1
-python main.py
+python3.13 -m src
 # or use the provided script:
+./run.sh
+# or from project root:
 /home/majid/projects/hackathon-todo/scripts/run-phase1.sh
 ```
 
-**Python Environment**:
+**Important**: The entry point is `phase1/src/__main__.py`, not `phase1/main.py`. Always run using `python3.13 -m src` or the provided shell scripts.
+
+### Testing
+
+**Run all tests**:
+```bash
+cd phase1
+python3.13 -m pytest
+```
+
+**Run specific test file**:
+```bash
+cd phase1
+python3.13 -m pytest tests/test_domain/test_task.py
+python3.13 -m pytest tests/test_services/test_task_service.py
+```
+
+**Run with coverage**:
+```bash
+cd phase1
+python3.13 -m pytest --cov=src --cov-report=term-missing
+```
+
+**Linting and Type Checking**:
+```bash
+cd phase1
+ruff check .
+mypy src/
+```
+
+### Python Environment
+
 - Python version: 3.13+ (see `phase1/.python-version`)
 - Virtual environment: `phase1/.venv/`
 - Package manager: uv (via `pyproject.toml`)
+- Test dependencies: pytest, pytest-cov, ruff, mypy
 
 **Ubuntu 24.04 Setup Note**:
 Ubuntu 24.04 ships with Python 3.12 by default. To use Python 3.13:
@@ -46,9 +80,9 @@ Ubuntu 24.04 ships with Python 3.12 by default. To use Python 3.13:
    rm -rf .venv
    python3.13 -m venv .venv
    source .venv/bin/activate
-   pip install uv  # or use system uv if available
+   pip install -e ".[test]"  # Install with test dependencies
    ```
-3. Run application: `python3.13 main.py` or activate venv first: `source .venv/bin/activate && python main.py`
+3. Run application: `python3.13 -m src` or activate venv first: `source .venv/bin/activate && python -m src`
 
 ## Spec-Driven Development Workflow
 
@@ -71,6 +105,36 @@ The project includes custom slash commands for the SDD workflow (all under `.cla
 - `/sp.checklist` - Generate custom checklists
 
 **Typical workflow**: `/sp.specify` → `/sp.clarify` → `/sp.plan` → `/sp.tasks` → `/sp.implement`
+
+### SpecKit Plus Framework Integration
+
+The project uses SpecKit Plus framework (in `.specify/`) for SDD workflows:
+
+- **Templates** (`.specify/templates/`): Standardized formats for specs, plans, tasks, ADRs, PHRs, and checklists
+- **Scripts** (`.specify/scripts/bash/`): Shell utilities for creating features, PHRs, ADRs, and managing workflow
+- **Memory** (`.specify/memory/`): Project constitution defining principles and constraints
+
+Key scripts:
+- `create-new-feature.sh`: Initialize new feature with directory structure
+- `setup-plan.sh`: Set up planning phase artifacts
+- `create-phr.sh`: Generate Prompt History Record from template
+- `create-adr.sh`: Generate Architecture Decision Record
+- `check-prerequisites.sh`: Validate environment and dependencies
+
+All slash commands in `.claude/commands/` integrate with these scripts to provide a seamless SDD experience.
+
+## Available Sub-Agents and Skills
+For complex, modular tasks, Claude Code auto-discovers and loads sub-agents from `.claude/agents/` and skills from `.claude/skills/`. Use handoffs in prompts to delegate (e.g., "Handoff to [sub-agent-name]: [details]").
+### Sub-Agents 
+- **Backend Builder** (`.claude/agents/backend-builder.md`): Orchestrates backend tasks like API generation, DB schemas, and auth. 
+- **Frontend Composer** (`.claude/agents/frontend-composer.md`): Orchestrates frontend tasks like UI components and pages. 
+### Skills 
+These are auto-loaded into sub-agents where required. 
+- **Auth Integrator** (`.claude/skills/auth-integrator/`): Handles JWT/Better Auth setup.
+- **UI Component Builder** (`.claude/skills/ui-component-builder/`): Generates Next.js components with Tailwind.
+- **DB Schema Creator** (`.claude/skills/db-schema-creator/`): Creates SQLModel schemas. 
+- **API Endpoint Generator** (`.claude/skills/api-endpoint-generator/`): Builds FastAPI endpoints.
+
 
 ## SDD Methodology Guidelines
 
@@ -297,9 +361,84 @@ The project constitution (`.specify/memory/constitution.md`) defines core princi
 - **Decision tracking**: Document significant architectural choices
 - **Prompt history**: Preserve full context of all AI interactions
 
+## Phase 1 Implementation Architecture
+
+The Phase 1 console application (in `phase1/`) follows a clean layered architecture:
+
+### Directory Structure
+```
+phase1/
+├── src/
+│   ├── domain/          # Domain models and business entities
+│   │   ├── task.py      # Task entity with validation
+│   │   ├── enums.py     # TaskStatus, Priority enums
+│   │   └── exceptions.py # Domain exceptions
+│   ├── services/        # Business logic layer
+│   │   └── task_service.py # Task operations orchestration
+│   ├── storage/         # Data persistence layer
+│   │   └── repository.py # InMemoryTaskRepository
+│   ├── commands/        # CLI command handlers
+│   │   ├── add_task.py
+│   │   ├── list_tasks.py
+│   │   ├── update_task.py
+│   │   ├── complete_task.py
+│   │   └── delete_task.py
+│   ├── utils/           # Utility functions
+│   │   ├── datetime_utils.py
+│   │   └── display_utils.py
+│   ├── __main__.py      # Package entry point
+│   └── main.py          # Application loop
+└── tests/               # Test suite mirroring src/
+    ├── test_domain/
+    ├── test_services/
+    ├── test_storage/
+    └── test_commands/
+```
+
+### Architecture Layers
+
+1. **Domain Layer** (`src/domain/`)
+   - Pure business entities with validation
+   - No dependencies on storage or services
+   - Task model with fields: id, title, description, due_date, priority, status, created_at, updated_at
+
+2. **Storage Layer** (`src/storage/`)
+   - `InMemoryTaskRepository`: dict-based storage (UUID → Task)
+   - Interface ready for database implementation in Phase 2
+
+3. **Service Layer** (`src/services/`)
+   - `TaskService`: orchestrates CRUD operations
+   - Enforces business rules
+   - Coordinates between repository and domain
+
+4. **Command Layer** (`src/commands/`)
+   - Each command is a separate module
+   - Handles user input/output
+   - Delegates to TaskService
+   - Implements console UI logic
+
+### Key Implementation Details
+
+- **Task Model**: Uses Python dataclasses with validation in `__post_init__`
+- **Enums**: TaskStatus (PENDING, COMPLETED), Priority (LOW, MEDIUM, HIGH)
+- **Storage**: In-memory dict mapping `UUID → Task`
+- **Testing**: 16 tests covering domain validation and service operations
+- **Error Handling**: Domain exceptions for validation, service-level error messages
+
+### Phase 2 Transition Notes
+
+The constitution (`.specify/memory/constitution.md`) now defines Phase 2 requirements:
+- Frontend: Next.js 16 + Better-Auth
+- Backend: FastAPI + JWT authentication
+- Database: Neon PostgreSQL
+- Architecture: Full-stack separation (frontend/, backend/, database)
+
+Phase 1 code in `phase1/` remains as reference. Phase 2 will be a complete rewrite following the new architecture.
+
 ## Active Technologies
 - Python 3.13 + Python standard library (uuid, datetime, enum); pytest, ruff, mypy for testing/quality only (001-console-todo-app)
 - In-memory only (Python dict mapping UUID → Task object) (001-console-todo-app)
+- Neon PostgreSQL (cloud-hosted) (002-fullstack-web-app)
 
 ## Recent Changes
 - 001-console-todo-app: Added Python 3.13 + Python standard library (uuid, datetime, enum); pytest, ruff, mypy for testing/quality only

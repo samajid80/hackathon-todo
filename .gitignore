@@ -95,7 +95,11 @@ celerybeat.pid
 # SageMath parsed files
 *.sage.py
 
-# Environments
+# ========================================
+# CRITICAL SECURITY: Environment Variables
+# ========================================
+# NEVER commit secrets, tokens, or credentials
+# These files contain sensitive data like JWT_SECRET, DATABASE_URL, API keys
 .env
 .venv
 env/
@@ -103,6 +107,25 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+
+# Environment files (all variants)
+.env.local
+.env.*.local
+frontend/.env.local
+backend/.env
+backend/.env.local
+
+# ========================================
+# CRITICAL SECURITY: Database Files
+# ========================================
+# Database connection strings - NEVER commit credentials
+# SQLite and local database files should not be in version control
+*.db
+*.sqlite
+*.sqlite3
+db/
+data/
+*.db-journal
 
 # Spyder project settings
 .spyderproject
@@ -137,3 +160,22 @@ phase1/.mypy_cache/
 phase1/dist/
 phase1/build/
 *.egg-info/
+
+# Node.js / Next.js
+node_modules/
+frontend/.next/
+frontend/out/
+frontend/dist/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Next.js specific
+.next/
+out/
+
+# Coverage
+coverage/
+*.lcov
