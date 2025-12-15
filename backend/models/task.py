@@ -126,14 +126,22 @@ class Task(TaskBase, table=True):
 
     Represents the tasks table in PostgreSQL with all fields, relationships,
     and indexes required for efficient queries.
+
+    Note: priority and status are stored as VARCHAR strings in the database,
+    but validated as enums in the API layer (TaskCreate, TaskUpdate).
     """
 
     __tablename__ = "tasks"
 
     id: UUID = Field(default_factory=uuid4, primary_key=True)
-    user_id: UUID = Field(foreign_key="users.id", index=True, nullable=False)
+    user_id: str = Field(index=True, nullable=False)  # FK constraint exists in DB, not needed in ORM
     created_at: datetime = Field(default_factory=datetime.utcnow, nullable=False)
     updated_at: datetime = Field(default_factory=datetime.utcnow, nullable=False)
+
+    # Override enum fields to store as strings in database
+    # This prevents SQLAlchemy from using enum names instead of values
+    priority: str = Field(max_length=10, nullable=False, default="medium")
+    status: str = Field(max_length=10, nullable=False, default="pending")
 
     # Composite indexes for efficient queries
     __table_args__ = (
@@ -263,11 +271,59 @@ class TaskRead(TaskBase):
     Includes all fields including id, user_id, and timestamps.
 
     Note:
-        No input validation needed for read-only schema.
-        This is only used for API responses, not user input.
+        Priority and status fields are converted from database strings to enums
+        for API responses.
     """
 
     id: UUID
-    user_id: UUID
+    user_id: str
     created_at: datetime
     updated_at: datetime
+
+    @field_validator("priority", mode="before")
+    @classmethod
+    def convert_priority_to_enum(cls, v: str | Priority) -> Priority:
+        """Convert string priority from database to Priority enum.
+
+        Args:
+            v: Priority value (either string from DB or enum from validation)
+
+        Returns:
+            Priority: Priority enum value
+
+        Raises:
+            ValueError: If priority value is invalid
+        """
+        if isinstance(v, Priority):
+            return v
+        if isinstance(v, str):
+            # Convert lowercase string to enum
+            try:
+                return Priority(v.lower())
+            except ValueError:
+                raise ValueError(f"Invalid priority value: {v}")
+        raise ValueError(f"Priority must be string or Priority enum, got {type(v)}")
+
+    @field_validator("status", mode="before")
+    @classmethod
+    def convert_status_to_enum(cls, v: str | Status) -> Status:
+        """Convert string status from database to Status enum.
+
+        Args:
+            v: Status value (either string from DB or enum from validation)
+
+        Returns:
+            Status: Status enum value
+
+        Raises:
+            ValueError: If status value is invalid
+        """
+        if isinstance(v, Status):
+            return v
+        if isinstance(v, str):
+            # Convert lowercase string to enum
+            try:
+                return Status(v.lower())
+            except ValueError:
+                raise ValueError(f"Invalid status value: {v}")
+        raise ValueError(f"Status must be string or Status enum, got {type(v)}")

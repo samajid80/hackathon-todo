@@ -29,9 +29,6 @@ import { Button } from "./ui/Button";
 import { completeTask } from "@/lib/api/tasks";
 import { ApiError } from "@/lib/api/tasks";
 
-type SortField = "title" | "priority" | "status" | "due_date" | "created_at";
-type SortOrder = "asc" | "desc";
-
 export interface TaskTableProps {
   tasks: Task[];
   onEdit?: (taskId: string) => void;
@@ -50,22 +47,11 @@ export const TaskTable: React.FC<TaskTableProps> = ({
   const router = useRouter();
   const [tasks, setTasks] = useState(initialTasks);
   const [completingTasks, setCompletingTasks] = useState<Set<string>>(new Set());
-  const [sortField, setSortField] = useState<SortField>("created_at");
-  const [sortOrder, setSortOrder] = useState<SortOrder>("desc");
 
   // Update tasks when prop changes
   React.useEffect(() => {
     setTasks(initialTasks);
   }, [initialTasks]);
-
-  const handleSort = (field: SortField) => {
-    if (sortField === field) {
-      setSortOrder(sortOrder === "asc" ? "desc" : "asc");
-    } else {
-      setSortField(field);
-      setSortOrder("asc");
-    }
-  };
 
   const handleComplete = async (taskId: string) => {
     if (completingTasks.has(taskId)) return;
@@ -123,77 +109,6 @@ export const TaskTable: React.FC<TaskTableProps> = ({
     }
   };
 
-  const sortedTasks = [...tasks].sort((a, b) => {
-    let aValue: string | number | null = a[sortField];
-    let bValue: string | number | null = b[sortField];
-
-    // Handle null values
-    if (aValue === null && bValue === null) return 0;
-    if (aValue === null) return sortOrder === "asc" ? 1 : -1;
-    if (bValue === null) return sortOrder === "asc" ? -1 : 1;
-
-    // Compare values
-    if (typeof aValue === "string" && typeof bValue === "string") {
-      return sortOrder === "asc"
-        ? aValue.localeCompare(bValue)
-        : bValue.localeCompare(aValue);
-    }
-
-    return 0;
-  });
-
-  const SortIcon: React.FC<{ field: SortField }> = ({ field }) => {
-    if (sortField !== field) {
-      return (
-        <svg
-          className="w-4 h-4 text-gray-400"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-          aria-hidden="true"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"
-          />
-        </svg>
-      );
-    }
-
-    return sortOrder === "asc" ? (
-      <svg
-        className="w-4 h-4 text-blue-600"
-        fill="none"
-        stroke="currentColor"
-        viewBox="0 0 24 24"
-        aria-hidden="true"
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth={2}
-          d="M5 15l7-7 7 7"
-        />
-      </svg>
-    ) : (
-      <svg
-        className="w-4 h-4 text-blue-600"
-        fill="none"
-        stroke="currentColor"
-        viewBox="0 0 24 24"
-        aria-hidden="true"
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth={2}
-          d="M19 9l-7 7-7-7"
-        />
-      </svg>
-    );
-  };
 
   const formatCreatedDate = (dateString: string): string => {
     const date = new Date(dateString);
@@ -211,53 +126,33 @@ export const TaskTable: React.FC<TaskTableProps> = ({
           <tr>
             <th
               scope="col"
-              className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
-              onClick={() => handleSort("title")}
+              className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
             >
-              <div className="flex items-center gap-2">
-                Title
-                <SortIcon field="title" />
-              </div>
+              Title
             </th>
             <th
               scope="col"
-              className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
-              onClick={() => handleSort("priority")}
+              className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
             >
-              <div className="flex items-center gap-2">
-                Priority
-                <SortIcon field="priority" />
-              </div>
+              Priority
             </th>
             <th
               scope="col"
-              className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
-              onClick={() => handleSort("status")}
+              className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
             >
-              <div className="flex items-center gap-2">
-                Status
-                <SortIcon field="status" />
-              </div>
+              Status
             </th>
             <th
               scope="col"
-              className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
-              onClick={() => handleSort("due_date")}
+              className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
             >
-              <div className="flex items-center gap-2">
-                Due Date
-                <SortIcon field="due_date" />
-              </div>
+              Due Date
             </th>
             <th
               scope="col"
-              className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
-              onClick={() => handleSort("created_at")}
+              className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
             >
-              <div className="flex items-center gap-2">
-                Created
-                <SortIcon field="created_at" />
-              </div>
+              Created
             </th>
             <th
               scope="col"
@@ -268,7 +163,7 @@ export const TaskTable: React.FC<TaskTableProps> = ({
           </tr>
         </thead>
         <tbody className="bg-white divide-y divide-gray-200">
-          {sortedTasks.map((task) => {
+          {tasks.map((task) => {
             const isOverdue = isTaskOverdue(task);
             const isCompleted = task.status === "completed";
             const isPending = task.status === "pending";

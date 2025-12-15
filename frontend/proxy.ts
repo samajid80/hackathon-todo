@@ -1,5 +1,6 @@
 /**
- * Next.js Middleware for route protection (T039)
+ * Next.js Proxy for route protection (T039)
+ * Previously called "middleware" in Next.js 15 and earlier
  *
  * Features:
  * - Check if user is authenticated via Better-Auth session
@@ -12,6 +13,7 @@
 
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { getSessionCookie } from "better-auth/cookies";
 
 // Define public routes that don't require authentication
 const publicRoutes = ["/login", "/signup", "/"];
@@ -20,9 +22,9 @@ const publicRoutes = ["/login", "/signup", "/"];
 const authRoutes = ["/login", "/signup"];
 
 /**
- * Middleware function to protect routes
+ * Proxy function to protect routes (Next.js 16+)
  */
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Check if the current route is public
@@ -31,10 +33,11 @@ export async function middleware(request: NextRequest) {
   // Check if the current route is an auth route (login/signup)
   const isAuthRoute = authRoutes.includes(pathname);
 
-  // Get the session token from cookies
-  // Better-Auth stores the session in a cookie named: hackathon-todo.session-token
-  const sessionToken = request.cookies.get("hackathon-todo.session-token");
-  const isAuthenticated = !!sessionToken;
+  // Get the session cookie using Better-Auth's helper
+  const sessionCookie = getSessionCookie(request, {
+    cookiePrefix: "hackathon-todo",
+  });
+  const isAuthenticated = !!sessionCookie;
 
   // If user is authenticated and trying to access auth routes (login/signup)
   // redirect them to /tasks
@@ -66,17 +69,18 @@ export async function middleware(request: NextRequest) {
 }
 
 /**
- * Configure which routes the middleware should run on
+ * Configure which routes the proxy should run on
  */
 export const config = {
   matcher: [
     /*
      * Match all request paths except:
+     * - api/auth/* (Better-Auth authentication endpoints)
      * - _next/static (static files)
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
      * - public files (images, etc.)
      */
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!api/auth|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };

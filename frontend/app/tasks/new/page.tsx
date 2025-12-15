@@ -37,11 +37,11 @@ interface FormErrors {
 export default function NewTaskPage() {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [formData, setFormData] = useState<TaskCreate>({
+  const [formData, setFormData] = useState({
     title: "",
-    description: null,
-    due_date: null,
-    priority: "medium",
+    description: "",
+    due_date: "",
+    priority: "medium" as Priority,
   });
   const [errors, setErrors] = useState<FormErrors>({});
   const [touched, setTouched] = useState<Record<string, boolean>>({});
@@ -82,17 +82,15 @@ export default function NewTaskPage() {
     e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
   ) => {
     const { name, value } = e.target;
-    const processedValue =
-      value === "" || value === null ? null : value;
 
     setFormData((prev) => ({
       ...prev,
-      [name]: processedValue,
+      [name]: value,
     }));
 
     // Validate if field has been touched
     if (touched[name]) {
-      const error = validateField(name as keyof TaskCreate, processedValue);
+      const error = validateField(name as keyof TaskCreate, value || null);
       setErrors((prev) => ({
         ...prev,
         [name]: error,
@@ -107,9 +105,7 @@ export default function NewTaskPage() {
     const { name, value } = e.target;
     setTouched((prev) => ({ ...prev, [name]: true }));
 
-    const processedValue =
-      value === "" || value === null ? null : value;
-    const error = validateField(name as keyof TaskCreate, processedValue);
+    const error = validateField(name as keyof TaskCreate, value || null);
     setErrors((prev) => ({
       ...prev,
       [name]: error,
@@ -125,11 +121,11 @@ export default function NewTaskPage() {
 
     const descriptionError = validateField(
       "description",
-      formData.description ?? null
+      formData.description || null
     );
     if (descriptionError) newErrors.description = descriptionError;
 
-    const dueDateError = validateField("due_date", formData.due_date ?? null);
+    const dueDateError = validateField("due_date", formData.due_date || null);
     if (dueDateError) newErrors.due_date = dueDateError;
 
     setErrors(newErrors);
@@ -155,7 +151,14 @@ export default function NewTaskPage() {
     setIsSubmitting(true);
 
     try {
-      await createTask(formData);
+      // Convert empty strings to null for API
+      const taskData: TaskCreate = {
+        title: formData.title,
+        description: formData.description || null,
+        due_date: formData.due_date || null,
+        priority: formData.priority,
+      };
+      await createTask(taskData);
       // Redirect to tasks page with success message
       router.push("/tasks?created=true");
     } catch (err) {
@@ -172,10 +175,10 @@ export default function NewTaskPage() {
 
   // Check if form is valid for submit button
   const isFormValid =
-    formData.title.trim().length > 0 &&
-    formData.title.length <= 200 &&
+    formData.title && formData.title.trim().length > 0 &&
+    (formData.title?.length ?? 0) <= 200 &&
     (!formData.description || formData.description.length <= 2000) &&
-    Object.keys(errors).length === 0;
+    Object.values(errors).every(error => !error);
 
   return (
     <div className="max-w-2xl mx-auto">
@@ -248,12 +251,12 @@ export default function NewTaskPage() {
             )}
             <span
               className={`text-sm ${
-                formData.title.length > 200
+                (formData.title?.length ?? 0) > 200
                   ? "text-red-600"
                   : "text-gray-500"
               }`}
             >
-              {formData.title.length}/200
+              {formData.title?.length ?? 0}/200
             </span>
           </div>
         </div>
@@ -269,7 +272,7 @@ export default function NewTaskPage() {
           <textarea
             id="description"
             name="description"
-            value={formData.description || ""}
+            value={formData.description}
             onChange={handleChange}
             onBlur={handleBlur}
             rows={4}
@@ -351,7 +354,7 @@ export default function NewTaskPage() {
             type="date"
             id="due_date"
             name="due_date"
-            value={formData.due_date || ""}
+            value={formData.due_date}
             onChange={handleChange}
             onBlur={handleBlur}
             className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${

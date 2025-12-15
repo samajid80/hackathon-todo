@@ -158,17 +158,21 @@ The `.env` file contains sensitive credentials that must NEVER be committed to g
 The project uses SQL migration files for schema management. Migrations are numbered sequentially:
 
 **Current Migrations**:
-1. `001_create_tasks_table.sql` - Creates tasks table with indexes
-2. `002_updated_at_trigger.sql` - Auto-update timestamps trigger
+1. `000_create_users_table.sql` - Creates users table (Better-Auth compatible)
+2. `001_create_tasks_table.sql` - Creates tasks table with indexes
+3. `002_updated_at_trigger.sql` - Auto-update timestamps trigger
 
 **Running Migrations Manually**:
 
 Using psql (recommended):
 ```bash
 # Run all migrations in order
+psql "$DATABASE_URL" < migrations/000_create_users_table.sql
 psql "$DATABASE_URL" < migrations/001_create_tasks_table.sql
 psql "$DATABASE_URL" < migrations/002_updated_at_trigger.sql
 ```
+
+**Note**: Migration 000 creates the users table using `IF NOT EXISTS` to ensure compatibility with Better-Auth, which may also create this table when the frontend starts.
 
 Using Python (automatic on startup):
 ```bash

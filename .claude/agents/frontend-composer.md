@@ -1,7 +1,6 @@
 ---
 name: frontend-composer
 description: Use this sub-agent proactively for frontend-related tasks, such as generating Next.js components, pages, UI layouts, or any client-side logic from specs. Trigger when the query involves frontend development, UI components, pages, styling with Tailwind, or API client integration.
-tools: Read, Write, Bash 
 model: inherit  # Use the default model; can specify sonnet, opus, etc.
 permission: plan  # Requires plan approval before edits
 skills: ui-component-builder, auth-integrator  # Auto-load these skills

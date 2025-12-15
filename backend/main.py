@@ -10,7 +10,17 @@ This module initializes the FastAPI application with:
 """
 
 import os
+from pathlib import Path
 
+from dotenv import load_dotenv
+
+# Load environment variables BEFORE importing other modules
+# This ensures DATABASE_URL is available when db.py creates the engine
+backend_dir = Path(__file__).parent
+env_path = backend_dir / ".env"
+load_dotenv(dotenv_path=env_path)
+
+# Now import modules that depend on environment variables
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -75,18 +85,6 @@ To obtain a token, authenticate through the frontend using Better-Auth.
         "url": "https://opensource.org/licenses/MIT",
     },
 )
-
-# CORS configuration
-CORS_ORIGINS = os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=CORS_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
 
 # T159: Security headers middleware
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
@@ -217,6 +215,19 @@ app.add_middleware(CacheControlMiddleware)
 # T156: Add rate limiting middleware
 # Note: Rate limiting is added AFTER caching to limit requests before cache lookup
 app.add_middleware(RateLimitMiddleware)
+
+
+# CORS configuration - MUST be added LAST so it runs FIRST (middleware executes in reverse order)
+# This ensures CORS headers are added even if other middlewares throw errors
+CORS_ORIGINS = os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=CORS_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.on_event("startup")

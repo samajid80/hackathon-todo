@@ -28,7 +28,7 @@
 
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef, useCallback } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { getTasks, deleteTask } from "@/lib/api/tasks";
@@ -70,7 +70,13 @@ export default function TasksPage() {
   const [sortBy, setSortBy] = useState<SortField>("created_at");
   const [sortOrder, setSortOrder] = useState<SortOrder>("desc");
 
-  const fetchTasks = async (append = false) => {
+  // Ref to track if redirect toast has been shown (prevents duplicate in dev mode)
+  const toastShownRef = useRef(false);
+
+  // Ref to track current task count for pagination
+  const tasksCountRef = useRef(0);
+
+  const fetchTasks = useCallback(async (append = false) => {
     try {
       if (!append) {
         setIsLoading(true);
@@ -85,16 +91,22 @@ export default function TasksPage() {
       const sort = { sortBy, order: sortOrder };
 
       // T151: Calculate pagination skip based on current tasks
-      const skip = append ? tasks.length : 0;
+      // Use ref to get current task count
+      const skip = append ? tasksCountRef.current : 0;
       const pagination = { skip, limit: TASKS_PER_PAGE };
 
       const data = await getTasks(filter, sort, pagination);
 
       // T151: Handle paginated response
       if (append) {
-        setTasks((prevTasks) => [...prevTasks, ...data.items]);
+        setTasks((prevTasks) => {
+          const newTasks = [...prevTasks, ...data.items];
+          tasksCountRef.current = newTasks.length;
+          return newTasks;
+        });
       } else {
         setTasks(data.items);
+        tasksCountRef.current = data.items.length;
       }
 
       setTotalTasks(data.total);
@@ -117,30 +129,44 @@ export default function TasksPage() {
       setIsLoading(false);
       setIsLoadingMore(false);
     }
-  };
+  }, [filterStatus, sortBy, sortOrder]);
 
   // T151: Load more tasks
   const loadMoreTasks = () => {
     fetchTasks(true);
   };
 
+  // Separate effect for fetching tasks
   useEffect(() => {
     fetchTasks();
+  }, [fetchTasks]);
+
+  // Separate effect for handling redirect toasts and refreshing
+  useEffect(() => {
+    const isCreated = searchParams.get("created") === "true";
+    const isUpdated = searchParams.get("updated") === "true";
 
     // Check if we were redirected from task creation
-    if (searchParams.get("created") === "true") {
+    if (isCreated && !toastShownRef.current) {
       toast.success("Task created successfully!");
+      toastShownRef.current = true;
       // Clean up URL
       router.replace("/tasks");
     }
 
     // Check if we were redirected from task update
-    if (searchParams.get("updated") === "true") {
+    if (isUpdated && !toastShownRef.current) {
       toast.success("Task updated successfully!");
+      toastShownRef.current = true;
       // Clean up URL
       router.replace("/tasks");
     }
-  }, [filterStatus, sortBy, sortOrder]);
+
+    // Refresh task list whenever we return from creating or updating
+    if (isCreated || isUpdated) {
+      fetchTasks();
+    }
+  }, [searchParams, fetchTasks, router, toast]);
 
   const handleEdit = (taskId: string) => {
     router.push(`/tasks/${taskId}/edit`);
@@ -181,7 +207,11 @@ export default function TasksPage() {
 
     // T132: Optimistic update - remove task from UI immediately
     const previousTasks = [...tasks];
-    setTasks((prevTasks) => prevTasks.filter((task) => task.id !== taskId));
+    setTasks((prevTasks) => {
+      const newTasks = prevTasks.filter((task) => task.id !== taskId);
+      tasksCountRef.current = newTasks.length;
+      return newTasks;
+    });
     setTotalTasks((prev) => prev - 1);
 
     // Close dialog immediately
@@ -196,6 +226,7 @@ export default function TasksPage() {
     } catch (err) {
       // T132: Revert optimistic update on error
       setTasks(previousTasks);
+      tasksCountRef.current = previousTasks.length;
       setTotalTasks((prev) => prev + 1);
 
       // T134: Handle 403 Forbidden and 404 Not Found errors
@@ -219,11 +250,13 @@ export default function TasksPage() {
 
   const handleComplete = (taskId: string) => {
     // Update the task in the local state
-    setTasks((prevTasks) =>
-      prevTasks.map((task) =>
+    setTasks((prevTasks) => {
+      const newTasks = prevTasks.map((task) =>
         task.id === taskId ? { ...task, status: "completed" as const } : task
-      )
-    );
+      );
+      tasksCountRef.current = newTasks.length;
+      return newTasks;
+    });
     toast.success("Task marked as complete!");
   };
 
@@ -440,20 +473,6 @@ export default function TasksPage() {
           <h1 className="text-3xl font-bold text-gray-900">My Tasks</h1>
           <Link href="/tasks/new">
             <Button>
-              <svg
-                className="w-5 h-5 mr-2"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-                aria-hidden="true"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 4v16m8-8H4"
-                />
-              </svg>
               Create Task
             </Button>
           </Link>
@@ -497,20 +516,6 @@ export default function TasksPage() {
             <p className="text-gray-600 mb-6">{emptyState.message}</p>
             <Link href="/tasks/new">
               <Button>
-                <svg
-                  className="w-5 h-5 mr-2"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                  aria-hidden="true"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M12 4v16m8-8H4"
-                  />
-                </svg>
                 Create Your First Task
               </Button>
             </Link>
@@ -533,20 +538,6 @@ export default function TasksPage() {
         </div>
         <Link href="/tasks/new">
           <Button>
-            <svg
-              className="w-5 h-5 mr-2"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-              aria-hidden="true"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 4v16m8-8H4"
-              />
-            </svg>
             <span className="hidden sm:inline">Create Task</span>
             <span className="sm:hidden">New</span>
           </Button>

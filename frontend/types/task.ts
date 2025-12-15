@@ -80,3 +80,58 @@ export interface PaginatedTasksResponse {
   limit: number;
   has_more: boolean;
 }
+
+/**
+ * Format due date for display
+ * @param due_date ISO 8601 date string or null
+ * @returns Formatted date string or "No due date"
+ */
+export function formatDueDate(due_date: string | null): string {
+  if (!due_date) {
+    return "No due date";
+  }
+
+  const date = new Date(due_date);
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  }).format(date);
+}
+
+/**
+ * Check if a task is overdue
+ * @param task Task object
+ * @returns true if task is pending and due date is in the past
+ */
+export function isTaskOverdue(task: Task): boolean {
+  if (!task.due_date || task.status !== "pending") {
+    return false;
+  }
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0); // Reset to start of day
+
+  const dueDate = new Date(task.due_date);
+  dueDate.setHours(0, 0, 0, 0); // Reset to start of day
+
+  return dueDate < today;
+}
+
+/**
+ * Get display label for priority
+ * @param priority Priority value
+ * @returns Capitalized priority label
+ */
+export function getPriorityLabel(priority: Priority): string {
+  return priority.charAt(0).toUpperCase() + priority.slice(1);
+}
+
+/**
+ * Get display label for status
+ * @param status Status value
+ * @returns Capitalized status label
+ */
+export function getStatusLabel(status: Status): string {
+  return status.charAt(0).toUpperCase() + status.slice(1);
+}

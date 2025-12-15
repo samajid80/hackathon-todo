@@ -11,22 +11,9 @@ const nextConfig = {
     optimizePackageImports: ['@better-auth/react'],
   },
 
-  // T153: Production optimizations
-  swcMinify: true, // Use SWC for faster minification
-
-  // T153: Configure webpack for better bundle optimization
-  webpack: (config, { dev, isServer }) => {
-    // Enable tree shaking for production builds
-    if (!dev && !isServer) {
-      config.optimization = {
-        ...config.optimization,
-        usedExports: true,
-        sideEffects: false,
-      };
-    }
-
-    return config;
-  },
+  // T153: Turbopack configuration (Next.js 16 uses Turbopack by default)
+  // Empty config to silence migration warning
+  turbopack: {},
 
   // Environment variables available to the browser
   env: {

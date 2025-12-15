@@ -19,12 +19,12 @@ from ..models.enums import Priority, SortOrder, Status, TaskSortBy, TaskStatusFi
 from ..models.task import Task, TaskCreate, TaskUpdate
 
 
-async def create_task(session: Session, user_id: UUID, task_create: TaskCreate) -> Task:
+async def create_task(session: Session, user_id: str, task_create: TaskCreate) -> Task:
     """Create a new task for a user.
 
     Args:
         session: Database session
-        user_id: UUID of the task owner
+        user_id: str of the task owner
         task_create: Task creation data (title, description, due_date, priority)
 
     Returns:
@@ -43,12 +43,13 @@ async def create_task(session: Session, user_id: UUID, task_create: TaskCreate) 
         raise ValueError("Task title cannot be empty")
 
     # Create task object with user association
+    # Convert enums to their string values for database storage
     task = Task(
         title=task_create.title.strip(),
         description=task_create.description.strip() if task_create.description else None,
         due_date=task_create.due_date,
-        priority=task_create.priority,
-        status=task_create.status,
+        priority=task_create.priority.value if task_create.priority else Priority.MEDIUM.value,
+        status=task_create.status.value if task_create.status else Status.PENDING.value,
         user_id=user_id,
     )
 
@@ -62,7 +63,7 @@ async def create_task(session: Session, user_id: UUID, task_create: TaskCreate) 
 
 async def get_user_tasks(
     session: Session,
-    user_id: UUID,
+    user_id: str,
     status: TaskStatusFilter | None = None,
     sort_by: TaskSortBy | None = None,
     order: SortOrder | None = None,
@@ -73,7 +74,7 @@ async def get_user_tasks(
 
     Args:
         session: Database session
-        user_id: UUID of the task owner
+        user_id: str of the task owner
         status: Optional filter by status (pending, completed, overdue)
         sort_by: Optional sort field (due_date, priority, status, created_at)
         order: Optional sort order (asc, desc)
@@ -122,16 +123,16 @@ async def get_user_tasks(
     if status is not None:
         if status == TaskStatusFilter.PENDING:
             # Uses: idx_user_status composite index (user_id, status)
-            statement = statement.where(Task.status == Status.PENDING)
+            statement = statement.where(Task.status == Status.PENDING.value)
         elif status == TaskStatusFilter.COMPLETED:
             # Uses: idx_user_status composite index (user_id, status)
-            statement = statement.where(Task.status == Status.COMPLETED)
+            statement = statement.where(Task.status == Status.COMPLETED.value)
         elif status == TaskStatusFilter.OVERDUE:
             # Overdue: pending tasks with due_date < today
             # Uses: idx_user_status for status filter, idx_due_date for date comparison
             today = date.today()
             statement = statement.where(
-                Task.status == Status.PENDING,
+                Task.status == Status.PENDING.value,
                 Task.due_date.is_not(None),
                 Task.due_date < today,
             )
@@ -141,41 +142,46 @@ async def get_user_tasks(
     sort_field = sort_by or TaskSortBy.CREATED_AT
     sort_order = order or SortOrder.DESC
 
-    if sort_field == TaskSortBy.DUE_DATE:
+    # Get string value of enum for comparison (handles both enum objects and strings)
+    sort_field_value = sort_field.value if hasattr(sort_field, 'value') else sort_field
+    sort_order_value = sort_order.value if hasattr(sort_order, 'value') else sort_order
+
+    if sort_field_value == "due_date":
         # Order by due_date with NULLs last
         # Uses: idx_user_due_date composite index (user_id, due_date) for efficient sorting
-        if sort_order == SortOrder.ASC:
+        if sort_order_value == "asc":
             statement = statement.order_by(col(Task.due_date).asc().nulls_last())
         else:
             statement = statement.order_by(col(Task.due_date).desc().nulls_last())
-    elif sort_field == TaskSortBy.PRIORITY:
+    elif sort_field_value == "priority":
         # Order by priority: high → medium → low
         # Priority enum: HIGH="high", MEDIUM="medium", LOW="low"
         # Alphabetical order doesn't work, so use CASE to map to numbers
         # high=3, medium=2, low=1
         # Uses: user_id index + in-memory sort (priority is not indexed)
+        # Note: Use .value to ensure string comparison since priority is stored as VARCHAR
         priority_order = case(
-            (Task.priority == Priority.HIGH, 3),
-            (Task.priority == Priority.MEDIUM, 2),
-            (Task.priority == Priority.LOW, 1),
+            (Task.priority == Priority.HIGH.value, 3),
+            (Task.priority == Priority.MEDIUM.value, 2),
+            (Task.priority == Priority.LOW.value, 1),
             else_=0,
         )
-        if sort_order == SortOrder.ASC:
+        if sort_order_value == "asc":
             # low (1) → medium (2) → high (3)
             statement = statement.order_by(priority_order.asc())
         else:
             # high (3) → medium (2) → low (1)
             statement = statement.order_by(priority_order.desc())
-    elif sort_field == TaskSortBy.STATUS:
+    elif sort_field_value == "status":
         # Order by status: pending → completed (or reverse)
         # Uses: user_id index + in-memory sort (status alone is not ideal for sorting)
-        if sort_order == SortOrder.ASC:
+        if sort_order_value == "asc":
             statement = statement.order_by(Task.status.asc())
         else:
             statement = statement.order_by(Task.status.desc())
-    else:  # TaskSortBy.CREATED_AT (default)
+    else:  # created_at (default)
         # Uses: user_id index + created_at (created_at has default ordering)
-        if sort_order == SortOrder.ASC:
+        if sort_order_value == "asc":
             statement = statement.order_by(Task.created_at.asc())
         else:
             statement = statement.order_by(Task.created_at.desc())
@@ -189,14 +195,14 @@ async def get_user_tasks(
 
 async def get_task_count(
     session: Session,
-    user_id: UUID,
+    user_id: str,
     status: TaskStatusFilter | None = None,
 ) -> int:
     """Get total count of tasks for a user with optional status filter (T151).
 
     Args:
         session: Database session
-        user_id: UUID of the task owner
+        user_id: str of the task owner
         status: Optional filter by status (pending, completed, overdue)
 
     Returns:
@@ -217,16 +223,16 @@ async def get_task_count(
     if status is not None:
         if status == TaskStatusFilter.PENDING:
             # Uses: idx_user_status composite index (user_id, status)
-            statement = statement.where(Task.status == Status.PENDING)
+            statement = statement.where(Task.status == Status.PENDING.value)
         elif status == TaskStatusFilter.COMPLETED:
             # Uses: idx_user_status composite index (user_id, status)
-            statement = statement.where(Task.status == Status.COMPLETED)
+            statement = statement.where(Task.status == Status.COMPLETED.value)
         elif status == TaskStatusFilter.OVERDUE:
             # Overdue: pending tasks with due_date < today
             # Uses: idx_user_status for status filter, idx_due_date for date comparison
             today = date.today()
             statement = statement.where(
-                Task.status == Status.PENDING,
+                Task.status == Status.PENDING.value,
                 Task.due_date.is_not(None),
                 Task.due_date < today,
             )
@@ -237,14 +243,14 @@ async def get_task_count(
 
 
 async def get_task_by_id(
-    session: Session, task_id: UUID, user_id: UUID
+    session: Session, task_id: UUID, user_id: str
 ) -> Task | None:
     """Get a single task by ID with ownership validation.
 
     Args:
         session: Database session
         task_id: UUID of the task to retrieve
-        user_id: UUID of the requesting user (for ownership check)
+        user_id: str of the requesting user (for ownership check)
 
     Returns:
         Optional[Task]: Task object if found and owned by user, None otherwise.
@@ -265,14 +271,14 @@ async def get_task_by_id(
 
 
 async def update_task(
-    session: Session, task_id: UUID, user_id: UUID, task_update: TaskUpdate
+    session: Session, task_id: UUID, user_id: str, task_update: TaskUpdate
 ) -> Task | None:
     """Update a task with ownership validation (T098).
 
     Args:
         session: Database session
         task_id: UUID of the task to update
-        user_id: UUID of the requesting user (for ownership check)
+        user_id: str of the requesting user (for ownership check)
         task_update: Task update data (partial updates supported)
 
     Returns:
@@ -322,6 +328,10 @@ async def update_task(
         # Strip description if provided
         if key == "description" and value is not None:
             value = value.strip() if value else None
+        # Convert enums to string values for database storage
+        elif key in ("priority", "status") and value is not None:
+            # model_dump() returns enum objects, convert to string values
+            value = value.value if hasattr(value, "value") else value
         setattr(task, key, value)
 
     # Save to database
@@ -333,13 +343,13 @@ async def update_task(
     return task
 
 
-async def delete_task(session: Session, task_id: UUID, user_id: UUID) -> bool:
+async def delete_task(session: Session, task_id: UUID, user_id: str) -> bool:
     """Delete a task with ownership validation.
 
     Args:
         session: Database session
         task_id: UUID of the task to delete
-        user_id: UUID of the requesting user (for ownership check)
+        user_id: str of the requesting user (for ownership check)
 
     Returns:
         bool: True if task was deleted, False if not found or not owned.
@@ -364,13 +374,13 @@ async def delete_task(session: Session, task_id: UUID, user_id: UUID) -> bool:
     return True
 
 
-async def complete_task(session: Session, task_id: UUID, user_id: UUID) -> Task | None:
+async def complete_task(session: Session, task_id: UUID, user_id: str) -> Task | None:
     """Mark a task as completed with ownership validation (T099).
 
     Args:
         session: Database session
         task_id: UUID of the task to complete
-        user_id: UUID of the requesting user (for ownership check)
+        user_id: str of the requesting user (for ownership check)
 
     Returns:
         Optional[Task]: Updated task object if found and owned by user, None otherwise.
@@ -399,7 +409,8 @@ async def complete_task(session: Session, task_id: UUID, user_id: UUID) -> Task 
         return None
 
     # Update status to completed (idempotent)
-    task.status = Status.COMPLETED
+    # Convert enum to string value for database storage
+    task.status = Status.COMPLETED.value
 
     # Save to database
     # Note: updated_at is automatically updated by database trigger (T103)

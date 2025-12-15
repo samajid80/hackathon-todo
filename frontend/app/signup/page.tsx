@@ -13,15 +13,16 @@
 
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { signUp } from "@/lib/auth-client";
+import { signUp, useSession } from "@/lib/auth-client";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { ErrorMessage } from "@/components/ui/ErrorMessage";
 
 interface FormErrors {
+  name?: string;
   email?: string;
   password?: string;
   confirmPassword?: string;
@@ -29,15 +30,30 @@ interface FormErrors {
 
 export default function SignUpPage() {
   const router = useRouter();
+  const { data: session, isPending } = useSession();
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [errors, setErrors] = useState<FormErrors>({});
   const [generalError, setGeneralError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [signupSuccess, setSignupSuccess] = useState(false);
+
+  // Redirect to tasks after session is confirmed
+  useEffect(() => {
+    if (signupSuccess && !isPending && session) {
+      router.push("/tasks");
+    }
+  }, [signupSuccess, session, isPending, router]);
 
   const validateForm = (): boolean => {
     const newErrors: FormErrors = {};
+
+    // Name validation
+    if (!name || name.trim().length === 0) {
+      newErrors.name = "Name is required";
+    }
 
     // Email validation
     if (!email) {
@@ -79,7 +95,7 @@ export default function SignUpPage() {
     setIsLoading(true);
 
     try {
-      const result = await signUp(email, password);
+      const result = await signUp(email, password, name);
 
       if (result.error) {
         // Handle specific error cases
@@ -92,8 +108,8 @@ export default function SignUpPage() {
           setGeneralError(result.error.message || "Failed to create account. Please try again.");
         }
       } else {
-        // Success - redirect to tasks
-        router.push("/tasks");
+        // Success - set flag to trigger redirect after session confirmation
+        setSignupSuccess(true);
       }
     } catch (error) {
       // Network or unexpected errors
@@ -103,6 +119,18 @@ export default function SignUpPage() {
       setIsLoading(false);
     }
   };
+
+  // Show loading state while waiting for session confirmation after signup
+  if (signupSuccess && isPending) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Creating your account...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
@@ -128,6 +156,19 @@ export default function SignUpPage() {
           )}
 
           <div className="space-y-4">
+            {/* Name input */}
+            <Input
+              id="name"
+              label="Name"
+              type="text"
+              autoComplete="name"
+              required
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              error={errors.name}
+              disabled={isLoading}
+            />
+
             {/* Email input */}
             <Input
               id="email"

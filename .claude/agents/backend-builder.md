@@ -1,7 +1,6 @@
 ---
 name: backend-builder
 description: Use this sub-agent proactively for backend-related tasks, such as generating FastAPI API routes, SQLModel database schemas, authentication integration, or any server-side logic from specs. Trigger when the query involves backend development, APIs, databases, or auth.
-tools: Read, Write, Bash
 model: inherit  # Use the default model; can specify sonnet, opus, etc.
 permission: plan  # Requires plan approval before edits
 skills: api-endpoint-generator, db-schema-creator, auth-integrator  # Auto-load these skills

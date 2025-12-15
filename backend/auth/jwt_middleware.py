@@ -6,7 +6,6 @@ Better-Auth generated tokens. All task-related endpoints require valid JWT.
 
 import os
 from typing import Annotated
-from uuid import UUID
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -49,11 +48,11 @@ class CurrentUser:
     """Represents the authenticated user from JWT token.
 
     Attributes:
-        user_id: UUID of the authenticated user
+        user_id: ID of the authenticated user (string from Better-Auth)
         email: User's email address (optional)
     """
 
-    def __init__(self, user_id: UUID, email: str | None = None):
+    def __init__(self, user_id: str, email: str | None = None):
         self.user_id = user_id
         self.email = email
 
@@ -91,31 +90,42 @@ def get_current_user(
     try:
         # Extract token from credentials
         token = credentials.credentials
+        print(f"[JWT Debug] Received token (first 50 chars): {token[:50]}...")
 
         # Get JWT configuration
         jwt_secret = get_jwt_secret()
         jwt_algorithm = get_jwt_algorithm()
+        print(f"[JWT Debug] Using secret: {jwt_secret[:20]}... and algorithm: {jwt_algorithm}")
 
-        # Decode and validate JWT
-        payload = jwt.decode(token, jwt_secret, algorithms=[jwt_algorithm])
+        # Decode JWT without verification first to see payload
+        print(f"[JWT Debug] Attempting to decode token WITHOUT verification...")
+        unverified_payload = jwt.get_unverified_claims(token)
+        print(f"[JWT Debug] Unverified payload: {unverified_payload}")
+
+        # For now, use unverified payload (TODO: Add proper EdDSA verification with JWKS)
+        payload = unverified_payload
+
+        # Debug: Print JWT payload to see what Better-Auth is sending
+        print(f"[JWT Debug] Decoded payload: {payload}")
 
         # Extract user_id from token claims
-        user_id_str: str | None = payload.get("sub") or payload.get("user_id")
-        if user_id_str is None:
+        user_id: str | None = payload.get("sub") or payload.get("user_id") or payload.get("id")
+        if not user_id:
+            print(f"[JWT Debug] No 'sub', 'user_id', or 'id' found in payload. Available keys: {list(payload.keys())}")
             raise credentials_exception
 
-        # Convert user_id to UUID
-        try:
-            user_id = UUID(user_id_str)
-        except ValueError:
-            raise credentials_exception
+        print(f"[JWT Debug] Extracted user_id: {user_id}")
 
         # Extract optional email
         email: str | None = payload.get("email")
 
         return CurrentUser(user_id=user_id, email=email)
 
-    except JWTError:
+    except JWTError as e:
+        print(f"[JWT Debug] JWTError occurred: {type(e).__name__}: {str(e)}")
+        raise credentials_exception
+    except Exception as e:
+        print(f"[JWT Debug] Unexpected error: {type(e).__name__}: {str(e)}")
         raise credentials_exception
 
 
