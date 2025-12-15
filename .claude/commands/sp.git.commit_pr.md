@@ -54,7 +54,7 @@ git remote -v                        # Remote configuration
 ```
 
 **CRITICAL:** Only run Git commands. Do not:
-- Run `python main.py`, `npm start`, `make`, or other build/start scripts
+- Run application entry points, build scripts, or start servers
 - Execute anything that might be long-running or blocking
 - Run tests, servers, or development tools
 

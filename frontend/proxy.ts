@@ -1,0 +1,86 @@
+/**
+ * Next.js Proxy for route protection (T039)
+ * Previously called "middleware" in Next.js 15 and earlier
+ *
+ * Features:
+ * - Check if user is authenticated via Better-Auth session
+ * - Public routes: /login, /signup, / (homepage)
+ * - Protected routes: /tasks and all subroutes
+ * - Redirect unauthenticated users to /login
+ * - Preserve redirect intent (return to original path after login)
+ * - Session expiration handling
+ */
+
+import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+import { getSessionCookie } from "better-auth/cookies";
+
+// Define public routes that don't require authentication
+const publicRoutes = ["/login", "/signup", "/"];
+
+// Define routes that should redirect to /tasks if authenticated
+const authRoutes = ["/login", "/signup"];
+
+/**
+ * Proxy function to protect routes (Next.js 16+)
+ */
+export async function proxy(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+
+  // Check if the current route is public
+  const isPublicRoute = publicRoutes.includes(pathname);
+
+  // Check if the current route is an auth route (login/signup)
+  const isAuthRoute = authRoutes.includes(pathname);
+
+  // Get the session cookie using Better-Auth's helper
+  const sessionCookie = getSessionCookie(request, {
+    cookiePrefix: "hackathon-todo",
+  });
+  const isAuthenticated = !!sessionCookie;
+
+  // If user is authenticated and trying to access auth routes (login/signup)
+  // redirect them to /tasks
+  if (isAuthenticated && isAuthRoute) {
+    return NextResponse.redirect(new URL("/tasks", request.url));
+  }
+
+  // If user is not authenticated and trying to access protected routes
+  // redirect them to /login
+  if (!isAuthenticated && !isPublicRoute) {
+    // Build the login URL with redirect parameter
+    const loginUrl = new URL("/login", request.url);
+
+    // Preserve the original path for redirect after login
+    if (pathname !== "/") {
+      loginUrl.searchParams.set("redirect", pathname);
+    }
+
+    // Add session expiration flag if applicable
+    // This can be enhanced to check if the session actually expired
+    // vs. user never being logged in
+    const response = NextResponse.redirect(loginUrl);
+
+    return response;
+  }
+
+  // Allow the request to proceed
+  return NextResponse.next();
+}
+
+/**
+ * Configure which routes the proxy should run on
+ */
+export const config = {
+  matcher: [
+    /*
+     * Match all request paths except:
+     * - api/auth/* (Better-Auth authentication endpoints)
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (favicon file)
+     * - public files (images, etc.)
+     */
+    "/((?!api/auth|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+  ],
+};
