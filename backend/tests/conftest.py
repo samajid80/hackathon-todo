@@ -8,16 +8,20 @@ from uuid import UUID, uuid4
 import pytest
 from fastapi.testclient import TestClient
 from jose import jwt
+from sqlalchemy import text
 from sqlmodel import Session, SQLModel, create_engine
-from sqlmodel.pool import StaticPool
 
 from backend.auth.jwt_middleware import CurrentUser
 from backend.db import get_session
 from backend.main import app
 from backend.models.task import Task
 
-# Test database configuration (in-memory SQLite)
-TEST_DATABASE_URL = "sqlite:///:memory:"
+# Test database configuration (PostgreSQL)
+# Use the real DATABASE_URL from environment, or fallback to a test database
+TEST_DATABASE_URL = os.getenv(
+    "TEST_DATABASE_URL",
+    os.getenv("DATABASE_URL", "postgresql://localhost/test_db")
+)
 
 # JWT test configuration
 TEST_JWT_SECRET = "test-secret-key-for-testing-only"
@@ -26,34 +30,51 @@ TEST_JWT_ALGORITHM = "HS256"
 # Override environment variables for testing
 os.environ["JWT_SECRET"] = TEST_JWT_SECRET
 os.environ["JWT_ALGORITHM"] = TEST_JWT_ALGORITHM
-os.environ["DATABASE_URL"] = TEST_DATABASE_URL
 
 
-@pytest.fixture(name="engine")
+@pytest.fixture(name="engine", scope="session")
 def engine_fixture():
-    """Create test database engine with in-memory SQLite.
+    """Create test database engine with PostgreSQL.
 
-    Uses StaticPool to keep the same in-memory database across connections.
+    Creates tables at the start of test session and drops them at the end.
+    Uses session scope to reuse the same engine across all tests.
     """
     engine = create_engine(
         TEST_DATABASE_URL,
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
+        echo=False,  # Set to True for SQL debugging
+        pool_pre_ping=True,  # Verify connections before using
     )
+
+    # Create all tables
     SQLModel.metadata.create_all(engine)
+
     yield engine
+
+    # Drop all tables after tests complete
     SQLModel.metadata.drop_all(engine)
+    engine.dispose()
 
 
-@pytest.fixture(name="session")
+@pytest.fixture(name="session", autouse=True)
 def session_fixture(engine) -> Generator[Session]:
-    """Create test database session.
+    """Create test database session with automatic cleanup.
 
-    Yields a fresh session for each test, automatically rolls back
-    changes after the test completes.
+    Each test gets a fresh session. After the test completes,
+    all data is deleted to ensure test isolation.
     """
-    with Session(engine) as session:
-        yield session
+    session = Session(engine)
+
+    yield session
+
+    # Clean up: delete all data from tables using raw SQL
+    try:
+        session.exec(text("DELETE FROM tasks"))
+        # Delete from other tables if needed (users table is managed by Better Auth)
+        session.commit()
+    except Exception:
+        session.rollback()
+    finally:
+        session.close()
 
 
 @pytest.fixture(name="client")

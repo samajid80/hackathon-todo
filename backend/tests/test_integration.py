@@ -230,7 +230,10 @@ def test_protected_endpoint_with_valid_token(
         headers={"Authorization": f"Bearer {test_jwt_token}"}
     )
     assert response.status_code == 200
-    assert isinstance(response.json(), list)
+    data = response.json()
+    assert "items" in data
+    assert "total" in data
+    assert isinstance(data["items"], list)
 
 
 def test_user_isolation_with_different_tokens(
@@ -360,7 +363,7 @@ def test_create_and_view_task_flow(
         headers={"Authorization": f"Bearer {test_jwt_token}"},
     )
     assert list_response.status_code == 200
-    tasks = list_response.json()
+    tasks = list_response.json()["items"]
     assert len(tasks) == 1
     assert tasks[0]["id"] == task_id
     assert tasks[0]["title"] == "Complete project proposal"
@@ -432,7 +435,7 @@ def test_create_multiple_tasks_and_view(
         headers={"Authorization": f"Bearer {test_jwt_token}"},
     )
     assert list_response.status_code == 200
-    tasks = list_response.json()
+    tasks = list_response.json()["items"]
 
     # Step 3: Verify all 3 tasks in list
     assert len(tasks) == 3
@@ -501,7 +504,7 @@ def test_user_data_isolation(
         headers={"Authorization": f"Bearer {test_jwt_token}"},
     )
     assert list_a.status_code == 200
-    tasks_a = list_a.json()
+    tasks_a = list_a.json()["items"]
     assert len(tasks_a) == 1
     assert tasks_a[0]["id"] == task_a_id
     assert tasks_a[0]["title"] == "User A Task"
@@ -521,7 +524,7 @@ def test_user_data_isolation(
         headers={"Authorization": f"Bearer {test_jwt_token_2}"},
     )
     assert list_b.status_code == 200
-    tasks_b = list_b.json()
+    tasks_b = list_b.json()["items"]
     assert len(tasks_b) == 1
     assert tasks_b[0]["id"] == task_b_id
     assert tasks_b[0]["title"] == "User B Task"
@@ -640,7 +643,7 @@ def test_delete_task_flow(
         headers={"Authorization": f"Bearer {test_jwt_token}"},
     )
     assert list_response.status_code == 200
-    tasks = list_response.json()
+    tasks = list_response.json()["items"]
     assert len(tasks) == 1
     assert tasks[0]["id"] == task_id
 
@@ -668,7 +671,7 @@ def test_delete_task_flow(
         headers={"Authorization": f"Bearer {test_jwt_token}"},
     )
     assert list_response_after.status_code == 200
-    tasks_after = list_response_after.json()
+    tasks_after = list_response_after.json()["items"]
     assert len(tasks_after) == 0
     assert tasks_after == []
 
@@ -781,7 +784,7 @@ def test_delete_other_users_task_flow(
         headers={"Authorization": f"Bearer {test_jwt_token}"},
     )
     assert list_response.status_code == 200
-    tasks = list_response.json()
+    tasks = list_response.json()["items"]
     assert len(tasks) == 1
     assert tasks[0]["id"] == task_a_id
 
@@ -845,7 +848,7 @@ def test_delete_multiple_tasks_flow(
         headers={"Authorization": f"Bearer {test_jwt_token}"},
     )
     assert list_response.status_code == 200
-    tasks = list_response.json()
+    tasks = list_response.json()["items"]
     assert len(tasks) == 3
 
     # Step 2: Delete task 1
@@ -861,7 +864,7 @@ def test_delete_multiple_tasks_flow(
         headers={"Authorization": f"Bearer {test_jwt_token}"},
     )
     assert list_response_after1.status_code == 200
-    tasks_after1 = list_response_after1.json()
+    tasks_after1 = list_response_after1.json()["items"]
     assert len(tasks_after1) == 2
     task_ids_after1 = {task["id"] for task in tasks_after1}
     assert task1_id not in task_ids_after1
@@ -881,7 +884,7 @@ def test_delete_multiple_tasks_flow(
         headers={"Authorization": f"Bearer {test_jwt_token}"},
     )
     assert list_response_after3.status_code == 200
-    tasks_after3 = list_response_after3.json()
+    tasks_after3 = list_response_after3.json()["items"]
     assert len(tasks_after3) == 1
     assert tasks_after3[0]["id"] == task2_id
     assert tasks_after3[0]["title"] == "Task 2"
@@ -899,6 +902,6 @@ def test_delete_multiple_tasks_flow(
         headers={"Authorization": f"Bearer {test_jwt_token}"},
     )
     assert list_response_final.status_code == 200
-    tasks_final = list_response_final.json()
+    tasks_final = list_response_final.json()["items"]
     assert len(tasks_final) == 0
     assert tasks_final == []

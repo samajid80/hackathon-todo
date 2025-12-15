@@ -279,12 +279,15 @@ def test_get_tasks_returns_all_user_tasks(
     # Assert
     assert response.status_code == 200
     data = response.json()
-    assert isinstance(data, list)
-    assert len(data) == 3
+    assert "items" in data
+    assert "total" in data
+    assert isinstance(data["items"], list)
+    assert len(data["items"]) == 3
+    assert data["total"] == 3
     # Verify ordering: newest first
-    assert data[0]["title"] == "Task 3"
-    assert data[1]["title"] == "Task 2"
-    assert data[2]["title"] == "Task 1"
+    assert data["items"][0]["title"] == "Task 3"
+    assert data["items"][1]["title"] == "Task 2"
+    assert data["items"][2]["title"] == "Task 1"
 
 
 def test_get_tasks_empty(client: TestClient, test_jwt_token: str):
@@ -302,8 +305,11 @@ def test_get_tasks_empty(client: TestClient, test_jwt_token: str):
     # Assert
     assert response.status_code == 200
     data = response.json()
-    assert data == []
-    assert isinstance(data, list)
+    assert "items" in data
+    assert "total" in data
+    assert data["items"] == []
+    assert data["total"] == 0
+    assert isinstance(data["items"], list)
 
 
 def test_get_tasks_excludes_other_users_tasks(
@@ -350,16 +356,18 @@ def test_get_tasks_excludes_other_users_tasks(
     # Assert - User A sees only their task
     assert response_a.status_code == 200
     data_a = response_a.json()
-    assert len(data_a) == 1
-    assert data_a[0]["title"] == "User A Task"
-    assert data_a[0]["user_id"] == str(test_user_id)
+    assert len(data_a["items"]) == 1
+    assert data_a["total"] == 1
+    assert data_a["items"][0]["title"] == "User A Task"
+    assert data_a["items"][0]["user_id"] == str(test_user_id)
 
     # Assert - User B sees only their task
     assert response_b.status_code == 200
     data_b = response_b.json()
-    assert len(data_b) == 1
-    assert data_b[0]["title"] == "User B Task"
-    assert data_b[0]["user_id"] == str(test_user_id_2)
+    assert len(data_b["items"]) == 1
+    assert data_b["total"] == 1
+    assert data_b["items"][0]["title"] == "User B Task"
+    assert data_b["items"][0]["user_id"] == str(test_user_id_2)
 
 
 def test_get_tasks_without_authentication(client: TestClient):
