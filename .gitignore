@@ -179,3 +179,4 @@ out/
 # Coverage
 coverage/
 *.lcov
+*:Zone.Identifier
