@@ -17,7 +17,7 @@ from backend.models.task import Task
 
 
 def test_post_task_success(
-    client: TestClient, test_jwt_token: str, test_user_id: UUID
+    client: TestClient, test_jwt_token: str, test_user_id_str: str
 ):
     """Test creating a task via POST /api/tasks.
 
@@ -45,7 +45,7 @@ def test_post_task_success(
     assert response.status_code == 201
     data = response.json()
     assert "id" in data
-    assert data["user_id"] == str(test_user_id)
+    assert data["user_id"] == test_user_id_str
     assert data["title"] == "Complete project proposal"
     assert data["description"] == "Write and submit the Q1 project proposal"
     assert data["priority"] == "high"
@@ -55,7 +55,7 @@ def test_post_task_success(
 
 
 def test_post_task_with_minimal_data(
-    client: TestClient, test_jwt_token: str, test_user_id: UUID
+    client: TestClient, test_jwt_token: str, test_user_id_str: str
 ):
     """Test creating a task with only required fields.
 
@@ -81,7 +81,7 @@ def test_post_task_with_minimal_data(
     assert data["due_date"] is None
     assert data["priority"] == "medium"  # Default
     assert data["status"] == "pending"  # Default
-    assert data["user_id"] == str(test_user_id)
+    assert data["user_id"] == test_user_id_str
 
 
 def test_post_task_validation_error_empty_title(
@@ -240,7 +240,7 @@ def test_get_tasks_returns_all_user_tasks(
     client: TestClient,
     session: Session,
     test_jwt_token: str,
-    test_user_id: UUID,
+    test_user_id_str: str,
 ):
     """Test GET /api/tasks returns all user's tasks.
 
@@ -251,19 +251,19 @@ def test_get_tasks_returns_all_user_tasks(
     """
     # Arrange - create 3 tasks for user
     task1 = Task(
-        user_id=test_user_id,
+        user_id=test_user_id_str,
         title="Task 1",
         priority=Priority.LOW,
         status=Status.PENDING,
     )
     task2 = Task(
-        user_id=test_user_id,
+        user_id=test_user_id_str,
         title="Task 2",
         priority=Priority.MEDIUM,
         status=Status.PENDING,
     )
     task3 = Task(
-        user_id=test_user_id,
+        user_id=test_user_id_str,
         title="Task 3",
         priority=Priority.HIGH,
         status=Status.COMPLETED,
@@ -317,8 +317,8 @@ def test_get_tasks_excludes_other_users_tasks(
     session: Session,
     test_jwt_token: str,
     test_jwt_token_2: str,
-    test_user_id: UUID,
-    test_user_id_2: UUID,
+    test_user_id_str: str,
+    test_user_id_2_str: str,
 ):
     """Test GET /api/tasks excludes other users' tasks.
 
@@ -329,13 +329,13 @@ def test_get_tasks_excludes_other_users_tasks(
     """
     # Arrange - create tasks for both users
     task_a = Task(
-        user_id=test_user_id,
+        user_id=test_user_id_str,
         title="User A Task",
         priority=Priority.MEDIUM,
         status=Status.PENDING,
     )
     task_b = Task(
-        user_id=test_user_id_2,
+        user_id=test_user_id_2_str,
         title="User B Task",
         priority=Priority.HIGH,
         status=Status.COMPLETED,
@@ -359,7 +359,7 @@ def test_get_tasks_excludes_other_users_tasks(
     assert len(data_a["items"]) == 1
     assert data_a["total"] == 1
     assert data_a["items"][0]["title"] == "User A Task"
-    assert data_a["items"][0]["user_id"] == str(test_user_id)
+    assert data_a["items"][0]["user_id"] == test_user_id_str
 
     # Assert - User B sees only their task
     assert response_b.status_code == 200
@@ -367,7 +367,7 @@ def test_get_tasks_excludes_other_users_tasks(
     assert len(data_b["items"]) == 1
     assert data_b["total"] == 1
     assert data_b["items"][0]["title"] == "User B Task"
-    assert data_b["items"][0]["user_id"] == str(test_user_id_2)
+    assert data_b["items"][0]["user_id"] == test_user_id_2_str
 
 
 def test_get_tasks_without_authentication(client: TestClient):
@@ -392,7 +392,7 @@ def test_get_task_by_id_success(
     client: TestClient,
     session: Session,
     test_jwt_token: str,
-    test_user_id: UUID,
+    test_user_id_str: str,
 ):
     """Test GET /api/tasks/{task_id} for owned task.
 
@@ -402,7 +402,7 @@ def test_get_task_by_id_success(
     """
     # Arrange - create task
     task = Task(
-        user_id=test_user_id,
+        user_id=test_user_id_str,
         title="User's task",
         description="Task details",
         priority=Priority.HIGH,
@@ -427,7 +427,7 @@ def test_get_task_by_id_success(
     assert data["description"] == "Task details"
     assert data["priority"] == "high"
     assert data["status"] == "pending"
-    assert data["user_id"] == str(test_user_id)
+    assert data["user_id"] == test_user_id_str
     assert "created_at" in data
     assert "updated_at" in data
 
@@ -463,8 +463,8 @@ def test_get_task_by_id_not_owned(
     session: Session,
     test_jwt_token: str,
     test_jwt_token_2: str,
-    test_user_id: UUID,
-    test_user_id_2: UUID,
+    test_user_id_str: str,
+    test_user_id_2_str: str,
 ):
     """Test GET /api/tasks/{task_id} for task owned by another user.
 
@@ -474,7 +474,7 @@ def test_get_task_by_id_not_owned(
     """
     # Arrange - create task for User A
     task = Task(
-        user_id=test_user_id,
+        user_id=test_user_id_str,
         title="User A's task",
         priority=Priority.MEDIUM,
         status=Status.PENDING,
@@ -496,7 +496,7 @@ def test_get_task_by_id_not_owned(
 
 
 def test_get_task_by_id_without_authentication(
-    client: TestClient, session: Session, test_user_id: UUID
+    client: TestClient, session: Session, test_user_id_str: str
 ):
     """Test GET /api/tasks/{task_id} without token.
 
@@ -505,7 +505,7 @@ def test_get_task_by_id_without_authentication(
     """
     # Arrange - create task
     task = Task(
-        user_id=test_user_id,
+        user_id=test_user_id_str,
         title="Task",
         priority=Priority.MEDIUM,
         status=Status.PENDING,
@@ -548,7 +548,7 @@ def test_delete_task_success(
     client: TestClient,
     session: Session,
     test_jwt_token: str,
-    test_user_id: UUID,
+    test_user_id_str: str,
 ):
     """Test DELETE /api/tasks/{task_id} for owned task.
 
@@ -559,7 +559,7 @@ def test_delete_task_success(
     """
     # Arrange - create task
     task = Task(
-        user_id=test_user_id,
+        user_id=test_user_id_str,
         title="Task to delete",
         description="This task will be deleted",
         priority=Priority.MEDIUM,
@@ -627,8 +627,8 @@ def test_delete_task_not_owned(
     session: Session,
     test_jwt_token: str,
     test_jwt_token_2: str,
-    test_user_id: UUID,
-    test_user_id_2: UUID,
+    test_user_id_str: str,
+    test_user_id_2_str: str,
 ):
     """Test DELETE /api/tasks/{task_id} for task owned by another user.
 
@@ -639,7 +639,7 @@ def test_delete_task_not_owned(
     """
     # Arrange - create task for User A
     task = Task(
-        user_id=test_user_id,
+        user_id=test_user_id_str,
         title="User A's task",
         description="Only User A can delete this",
         priority=Priority.HIGH,
@@ -678,7 +678,7 @@ def test_delete_task_not_owned(
 
 
 def test_delete_task_without_authentication(
-    client: TestClient, session: Session, test_user_id: UUID
+    client: TestClient, session: Session, test_user_id_str: str
 ):
     """Test DELETE /api/tasks/{task_id} without Authorization header.
 
@@ -688,7 +688,7 @@ def test_delete_task_without_authentication(
     """
     # Arrange - create task
     task = Task(
-        user_id=test_user_id,
+        user_id=test_user_id_str,
         title="Task",
         priority=Priority.MEDIUM,
         status=Status.PENDING,
@@ -710,7 +710,7 @@ def test_delete_task_with_expired_token(
     client: TestClient,
     session: Session,
     expired_jwt_token: str,
-    test_user_id: UUID,
+    test_user_id_str: str,
 ):
     """Test DELETE /api/tasks/{task_id} with expired JWT token.
 
@@ -720,7 +720,7 @@ def test_delete_task_with_expired_token(
     """
     # Arrange - create task
     task = Task(
-        user_id=test_user_id,
+        user_id=test_user_id_str,
         title="Task",
         priority=Priority.MEDIUM,
         status=Status.PENDING,

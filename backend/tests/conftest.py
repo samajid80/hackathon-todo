@@ -4,10 +4,11 @@ import os
 from collections.abc import Generator
 from datetime import datetime, timedelta
 from uuid import UUID, uuid4
+from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
-from jose import jwt
+import jwt
 from sqlalchemy import text
 from sqlmodel import Session, SQLModel, create_engine
 
@@ -27,9 +28,25 @@ TEST_DATABASE_URL = os.getenv(
 TEST_JWT_SECRET = "test-secret-key-for-testing-only"
 TEST_JWT_ALGORITHM = "HS256"
 
-# Override environment variables for testing
-os.environ["JWT_SECRET"] = TEST_JWT_SECRET
-os.environ["JWT_ALGORITHM"] = TEST_JWT_ALGORITHM
+
+@pytest.fixture(scope="session", autouse=True)
+def mock_jwks_client():
+    """Mock the JWKS client to accept HS256 test tokens.
+
+    This fixture runs automatically for all tests and mocks the JWKS client
+    to validate HS256 tokens instead of requiring EdDSA + JWKS validation.
+    """
+    # Create a mock signing key that returns the test secret
+    mock_signing_key = MagicMock()
+    mock_signing_key.key = TEST_JWT_SECRET
+
+    # Mock the JWKS client to return our test signing key
+    mock_client = MagicMock()
+    mock_client.get_signing_key_from_jwt.return_value = mock_signing_key
+
+    # Patch the get_jwks_client function to return our mock
+    with patch('backend.auth.jwt_middleware.get_jwks_client', return_value=mock_client):
+        yield mock_client
 
 
 @pytest.fixture(name="engine", scope="session")
@@ -111,6 +128,24 @@ def test_user_id_2_fixture() -> UUID:
     return uuid4()
 
 
+@pytest.fixture(name="test_user_id_str")
+def test_user_id_str_fixture(test_user_id: UUID) -> str:
+    """Generate a string version of test user ID.
+
+    Used for service functions that expect string user_id from JWT tokens.
+    """
+    return str(test_user_id)
+
+
+@pytest.fixture(name="test_user_id_2_str")
+def test_user_id_2_str_fixture(test_user_id_2: UUID) -> str:
+    """Generate a string version of second test user ID.
+
+    Used for service functions that expect string user_id from JWT tokens.
+    """
+    return str(test_user_id_2)
+
+
 @pytest.fixture(name="test_jwt_token")
 def test_jwt_token_fixture(test_user_id: UUID) -> str:
     """Generate a valid JWT token for testing.
@@ -123,12 +158,15 @@ def test_jwt_token_fixture(test_user_id: UUID) -> str:
     Returns:
         str: Encoded JWT token
     """
+    from datetime import timezone
+
+    now = datetime.now(timezone.utc)
     payload = {
         "sub": str(test_user_id),
         "user_id": str(test_user_id),
         "email": "test@example.com",
-        "exp": datetime.utcnow() + timedelta(hours=1),
-        "iat": datetime.utcnow(),
+        "exp": now + timedelta(hours=1),
+        "iat": now,
     }
     return jwt.encode(payload, TEST_JWT_SECRET, algorithm=TEST_JWT_ALGORITHM)
 
@@ -143,12 +181,15 @@ def test_jwt_token_2_fixture(test_user_id_2: UUID) -> str:
     Returns:
         str: Encoded JWT token
     """
+    from datetime import timezone
+
+    now = datetime.now(timezone.utc)
     payload = {
         "sub": str(test_user_id_2),
         "user_id": str(test_user_id_2),
         "email": "test2@example.com",
-        "exp": datetime.utcnow() + timedelta(hours=1),
-        "iat": datetime.utcnow(),
+        "exp": now + timedelta(hours=1),
+        "iat": now,
     }
     return jwt.encode(payload, TEST_JWT_SECRET, algorithm=TEST_JWT_ALGORITHM)
 
@@ -163,12 +204,15 @@ def expired_jwt_token_fixture(test_user_id: UUID) -> str:
     Returns:
         str: Encoded JWT token (expired)
     """
+    from datetime import timezone
+
+    now = datetime.now(timezone.utc)
     payload = {
         "sub": str(test_user_id),
         "user_id": str(test_user_id),
         "email": "test@example.com",
-        "exp": datetime.utcnow() - timedelta(hours=1),  # Expired 1 hour ago
-        "iat": datetime.utcnow() - timedelta(hours=2),
+        "exp": now - timedelta(hours=1),  # Expired 1 hour ago
+        "iat": now - timedelta(hours=2),
     }
     return jwt.encode(payload, TEST_JWT_SECRET, algorithm=TEST_JWT_ALGORITHM)
 
@@ -183,22 +227,22 @@ def current_user_fixture(test_user_id: UUID) -> CurrentUser:
     Returns:
         CurrentUser: Authenticated user object
     """
-    return CurrentUser(user_id=test_user_id, email="test@example.com")
+    return CurrentUser(user_id=str(test_user_id), email="test@example.com")
 
 
 @pytest.fixture(name="sample_task")
-def sample_task_fixture(session: Session, test_user_id: UUID) -> Task:
+def sample_task_fixture(session: Session, test_user_id_str: str) -> Task:
     """Create a sample task in the database for testing.
 
     Args:
         session: Database session
-        test_user_id: User ID to associate with the task
+        test_user_id_str: User ID string to associate with the task
 
     Returns:
         Task: Created task object
     """
     task = Task(
-        user_id=test_user_id,
+        user_id=test_user_id_str,
         title="Sample Task",
         description="This is a sample task for testing",
         priority="medium",

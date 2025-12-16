@@ -18,7 +18,7 @@ from backend.services import task_service
 # T069: Write unit tests for create_task service
 
 
-async def test_create_task_success(session: Session, test_user_id: UUID):
+async def test_create_task_success(session: Session, test_user_id_str: str):
     """Test creating a task with valid TaskCreate data.
 
     Validates:
@@ -38,13 +38,13 @@ async def test_create_task_success(session: Session, test_user_id: UUID):
     # Act
     task = await task_service.create_task(
         session=session,
-        user_id=test_user_id,
+        user_id=test_user_id_str,
         task_create=task_data,
     )
 
     # Assert
     assert task.id is not None
-    assert task.user_id == test_user_id
+    assert task.user_id == test_user_id_str
     assert task.title == "Complete project proposal"
     assert task.description == "Write and submit the Q1 project proposal"
     assert task.due_date == date.today() + timedelta(days=7)
@@ -60,10 +60,10 @@ async def test_create_task_success(session: Session, test_user_id: UUID):
     db_task = session.get(Task, task.id)
     assert db_task is not None
     assert db_task.id == task.id
-    assert db_task.user_id == test_user_id
+    assert db_task.user_id == test_user_id_str
 
 
-async def test_create_task_with_defaults(session: Session, test_user_id: UUID):
+async def test_create_task_with_defaults(session: Session, test_user_id_str: str):
     """Test creating a task with minimal data (defaults applied).
 
     Validates:
@@ -78,7 +78,7 @@ async def test_create_task_with_defaults(session: Session, test_user_id: UUID):
     # Act
     task = await task_service.create_task(
         session=session,
-        user_id=test_user_id,
+        user_id=test_user_id_str,
         task_create=task_data,
     )
 
@@ -88,10 +88,10 @@ async def test_create_task_with_defaults(session: Session, test_user_id: UUID):
     assert task.due_date is None
     assert task.priority == Priority.MEDIUM  # Default
     assert task.status == Status.PENDING  # Default
-    assert task.user_id == test_user_id
+    assert task.user_id == test_user_id_str
 
 
-async def test_create_task_with_empty_title(session: Session, test_user_id: UUID):
+async def test_create_task_with_empty_title(session: Session, test_user_id_str: str):
     """Test that empty title raises ValueError.
 
     Validates:
@@ -105,7 +105,7 @@ async def test_create_task_with_empty_title(session: Session, test_user_id: UUID
     with pytest.raises(ValueError) as exc_info:
         await task_service.create_task(
             session=session,
-            user_id=test_user_id,
+            user_id=test_user_id_str,
             task_create=task_data,
         )
 
@@ -162,7 +162,7 @@ async def test_create_task_description_too_long():
     assert "description" in error_str
 
 
-async def test_create_task_trims_whitespace(session: Session, test_user_id: UUID):
+async def test_create_task_trims_whitespace(session: Session, test_user_id_str: str):
     """Test that title and description are trimmed of whitespace.
 
     Validates:
@@ -177,7 +177,7 @@ async def test_create_task_trims_whitespace(session: Session, test_user_id: UUID
     # Act
     task = await task_service.create_task(
         session=session,
-        user_id=test_user_id,
+        user_id=test_user_id_str,
         task_create=task_data,
     )
 
@@ -189,7 +189,7 @@ async def test_create_task_trims_whitespace(session: Session, test_user_id: UUID
 # T070: Write unit tests for get_user_tasks service
 
 
-async def test_get_user_tasks_returns_all_tasks(session: Session, test_user_id: UUID):
+async def test_get_user_tasks_returns_all_tasks(session: Session, test_user_id_str: str):
     """Test getting all tasks for a user.
 
     Validates:
@@ -198,7 +198,7 @@ async def test_get_user_tasks_returns_all_tasks(session: Session, test_user_id: 
     """
     # Arrange - create 3 tasks for user
     task1 = Task(
-        user_id=test_user_id,
+        user_id=test_user_id_str,
         title="Task 1",
         priority=Priority.LOW,
         status=Status.PENDING,
@@ -207,7 +207,7 @@ async def test_get_user_tasks_returns_all_tasks(session: Session, test_user_id: 
     session.commit()
 
     task2 = Task(
-        user_id=test_user_id,
+        user_id=test_user_id_str,
         title="Task 2",
         priority=Priority.MEDIUM,
         status=Status.PENDING,
@@ -216,7 +216,7 @@ async def test_get_user_tasks_returns_all_tasks(session: Session, test_user_id: 
     session.commit()
 
     task3 = Task(
-        user_id=test_user_id,
+        user_id=test_user_id_str,
         title="Task 3",
         priority=Priority.HIGH,
         status=Status.COMPLETED,
@@ -225,7 +225,7 @@ async def test_get_user_tasks_returns_all_tasks(session: Session, test_user_id: 
     session.commit()
 
     # Act
-    tasks = await task_service.get_user_tasks(session=session, user_id=test_user_id)
+    tasks = await task_service.get_user_tasks(session=session, user_id=test_user_id_str)
 
     # Assert
     assert len(tasks) == 3
@@ -237,7 +237,7 @@ async def test_get_user_tasks_returns_all_tasks(session: Session, test_user_id: 
     assert tasks[1].created_at >= tasks[2].created_at
 
 
-async def test_get_user_tasks_returns_empty_list(session: Session, test_user_id: UUID):
+async def test_get_user_tasks_returns_empty_list(session: Session, test_user_id_str: str):
     """Test getting tasks for user with no tasks.
 
     Validates:
@@ -245,7 +245,7 @@ async def test_get_user_tasks_returns_empty_list(session: Session, test_user_id:
     - No errors raised
     """
     # Act - no tasks created
-    tasks = await task_service.get_user_tasks(session=session, user_id=test_user_id)
+    tasks = await task_service.get_user_tasks(session=session, user_id=test_user_id_str)
 
     # Assert
     assert tasks == []
@@ -253,7 +253,7 @@ async def test_get_user_tasks_returns_empty_list(session: Session, test_user_id:
 
 
 async def test_get_user_tasks_excludes_other_users_tasks(
-    session: Session, test_user_id: UUID, test_user_id_2: UUID
+    session: Session, test_user_id_str: str, test_user_id_2_str: str
 ):
     """Test that users only see their own tasks.
 
@@ -264,25 +264,25 @@ async def test_get_user_tasks_excludes_other_users_tasks(
     """
     # Arrange - create tasks for both users
     task_a1 = Task(
-        user_id=test_user_id,
+        user_id=test_user_id_str,
         title="User A Task 1",
         priority=Priority.MEDIUM,
         status=Status.PENDING,
     )
     task_a2 = Task(
-        user_id=test_user_id,
+        user_id=test_user_id_str,
         title="User A Task 2",
         priority=Priority.HIGH,
         status=Status.PENDING,
     )
     task_b1 = Task(
-        user_id=test_user_id_2,
+        user_id=test_user_id_2_str,
         title="User B Task 1",
         priority=Priority.LOW,
         status=Status.COMPLETED,
     )
     task_b2 = Task(
-        user_id=test_user_id_2,
+        user_id=test_user_id_2_str,
         title="User B Task 2",
         priority=Priority.MEDIUM,
         status=Status.PENDING,
@@ -292,12 +292,12 @@ async def test_get_user_tasks_excludes_other_users_tasks(
     session.commit()
 
     # Act - get tasks for each user
-    tasks_a = await task_service.get_user_tasks(session=session, user_id=test_user_id)
-    tasks_b = await task_service.get_user_tasks(session=session, user_id=test_user_id_2)
+    tasks_a = await task_service.get_user_tasks(session=session, user_id=test_user_id_str)
+    tasks_b = await task_service.get_user_tasks(session=session, user_id=test_user_id_2_str)
 
     # Assert - User A sees only their tasks
     assert len(tasks_a) == 2
-    assert all(task.user_id == test_user_id for task in tasks_a)
+    assert all(task.user_id == test_user_id_str for task in tasks_a)
     assert all("User A" in task.title for task in tasks_a)
 
     # Assert - User B sees only their tasks
@@ -314,7 +314,7 @@ async def test_get_user_tasks_excludes_other_users_tasks(
 # T071: Write unit tests for get_task_by_id with ownership validation
 
 
-async def test_get_task_by_id_owned_by_user(session: Session, test_user_id: UUID):
+async def test_get_task_by_id_owned_by_user(session: Session, test_user_id_str: str):
     """Test getting a task owned by the requesting user.
 
     Validates:
@@ -323,7 +323,7 @@ async def test_get_task_by_id_owned_by_user(session: Session, test_user_id: UUID
     """
     # Arrange - create task for user
     task = Task(
-        user_id=test_user_id,
+        user_id=test_user_id_str,
         title="User's task",
         description="This task belongs to the user",
         priority=Priority.HIGH,
@@ -337,19 +337,19 @@ async def test_get_task_by_id_owned_by_user(session: Session, test_user_id: UUID
     retrieved_task = await task_service.get_task_by_id(
         session=session,
         task_id=task.id,
-        user_id=test_user_id,
+        user_id=test_user_id_str,
     )
 
     # Assert
     assert retrieved_task is not None
     assert retrieved_task.id == task.id
-    assert retrieved_task.user_id == test_user_id
+    assert retrieved_task.user_id == test_user_id_str
     assert retrieved_task.title == "User's task"
     assert retrieved_task.description == "This task belongs to the user"
 
 
 async def test_get_task_by_id_not_owned_by_user(
-    session: Session, test_user_id: UUID, test_user_id_2: UUID
+    session: Session, test_user_id_str: str, test_user_id_2_str: str
 ):
     """Test getting a task NOT owned by the requesting user.
 
@@ -359,7 +359,7 @@ async def test_get_task_by_id_not_owned_by_user(
     """
     # Arrange - create task for User A
     task = Task(
-        user_id=test_user_id,
+        user_id=test_user_id_str,
         title="User A's task",
         priority=Priority.MEDIUM,
         status=Status.PENDING,
@@ -372,14 +372,14 @@ async def test_get_task_by_id_not_owned_by_user(
     retrieved_task = await task_service.get_task_by_id(
         session=session,
         task_id=task.id,
-        user_id=test_user_id_2,  # Different user
+        user_id=test_user_id_2_str,  # Different user
     )
 
     # Assert - None returned (not accessible)
     assert retrieved_task is None
 
 
-async def test_get_task_by_id_does_not_exist(session: Session, test_user_id: UUID):
+async def test_get_task_by_id_does_not_exist(session: Session, test_user_id_str: str):
     """Test getting a task that doesn't exist.
 
     Validates:
@@ -395,7 +395,7 @@ async def test_get_task_by_id_does_not_exist(session: Session, test_user_id: UUI
     retrieved_task = await task_service.get_task_by_id(
         session=session,
         task_id=non_existent_id,
-        user_id=test_user_id,
+        user_id=test_user_id_str,
     )
 
     # Assert
@@ -405,7 +405,7 @@ async def test_get_task_by_id_does_not_exist(session: Session, test_user_id: UUI
 # T090: Write unit tests for status filter (pending, completed, overdue)
 
 
-async def test_filter_by_status_pending(session: Session, test_user_id: UUID):
+async def test_filter_by_status_pending(session: Session, test_user_id_str: str):
     """Test filtering tasks by status=pending.
 
     Validates:
@@ -414,13 +414,13 @@ async def test_filter_by_status_pending(session: Session, test_user_id: UUID):
     """
     # Arrange - create mixed status tasks
     pending_task = Task(
-        user_id=test_user_id,
+        user_id=test_user_id_str,
         title="Pending task",
         status=Status.PENDING,
         priority=Priority.MEDIUM,
     )
     completed_task = Task(
-        user_id=test_user_id,
+        user_id=test_user_id_str,
         title="Completed task",
         status=Status.COMPLETED,
         priority=Priority.MEDIUM,
@@ -431,7 +431,7 @@ async def test_filter_by_status_pending(session: Session, test_user_id: UUID):
     # Act
     tasks = await task_service.get_user_tasks(
         session=session,
-        user_id=test_user_id,
+        user_id=test_user_id_str,
         status=TaskStatusFilter.PENDING,
     )
 
@@ -441,7 +441,7 @@ async def test_filter_by_status_pending(session: Session, test_user_id: UUID):
     assert tasks[0].title == "Pending task"
 
 
-async def test_filter_by_status_completed(session: Session, test_user_id: UUID):
+async def test_filter_by_status_completed(session: Session, test_user_id_str: str):
     """Test filtering tasks by status=completed.
 
     Validates:
@@ -450,13 +450,13 @@ async def test_filter_by_status_completed(session: Session, test_user_id: UUID):
     """
     # Arrange - create mixed status tasks
     pending_task = Task(
-        user_id=test_user_id,
+        user_id=test_user_id_str,
         title="Pending task",
         status=Status.PENDING,
         priority=Priority.MEDIUM,
     )
     completed_task = Task(
-        user_id=test_user_id,
+        user_id=test_user_id_str,
         title="Completed task",
         status=Status.COMPLETED,
         priority=Priority.MEDIUM,
@@ -467,7 +467,7 @@ async def test_filter_by_status_completed(session: Session, test_user_id: UUID):
     # Act
     tasks = await task_service.get_user_tasks(
         session=session,
-        user_id=test_user_id,
+        user_id=test_user_id_str,
         status=TaskStatusFilter.COMPLETED,
     )
 
@@ -477,7 +477,7 @@ async def test_filter_by_status_completed(session: Session, test_user_id: UUID):
     assert tasks[0].title == "Completed task"
 
 
-async def test_filter_by_status_overdue(session: Session, test_user_id: UUID):
+async def test_filter_by_status_overdue(session: Session, test_user_id_str: str):
     """Test filtering tasks by status=overdue (T078).
 
     Validates:
@@ -492,28 +492,28 @@ async def test_filter_by_status_overdue(session: Session, test_user_id: UUID):
 
     # Arrange - create tasks with various states
     overdue_task = Task(
-        user_id=test_user_id,
+        user_id=test_user_id_str,
         title="Overdue task",
         status=Status.PENDING,
         due_date=yesterday,
         priority=Priority.HIGH,
     )
     future_task = Task(
-        user_id=test_user_id,
+        user_id=test_user_id_str,
         title="Future task",
         status=Status.PENDING,
         due_date=tomorrow,
         priority=Priority.MEDIUM,
     )
     pending_no_date = Task(
-        user_id=test_user_id,
+        user_id=test_user_id_str,
         title="Pending no date",
         status=Status.PENDING,
         due_date=None,
         priority=Priority.LOW,
     )
     completed_overdue = Task(
-        user_id=test_user_id,
+        user_id=test_user_id_str,
         title="Completed but was overdue",
         status=Status.COMPLETED,
         due_date=yesterday,
@@ -526,7 +526,7 @@ async def test_filter_by_status_overdue(session: Session, test_user_id: UUID):
     # Act
     tasks = await task_service.get_user_tasks(
         session=session,
-        user_id=test_user_id,
+        user_id=test_user_id_str,
         status=TaskStatusFilter.OVERDUE,
     )
 
@@ -540,7 +540,7 @@ async def test_filter_by_status_overdue(session: Session, test_user_id: UUID):
 # T091: Write unit tests for sort_by parameter
 
 
-async def test_sort_by_due_date_asc(session: Session, test_user_id: UUID):
+async def test_sort_by_due_date_asc(session: Session, test_user_id_str: str):
     """Test sorting tasks by due_date ascending (T079).
 
     Validates:
@@ -551,21 +551,21 @@ async def test_sort_by_due_date_asc(session: Session, test_user_id: UUID):
 
     # Arrange
     task1 = Task(
-        user_id=test_user_id,
+        user_id=test_user_id_str,
         title="Due tomorrow",
         due_date=today + timedelta(days=1),
         priority=Priority.MEDIUM,
         status=Status.PENDING,
     )
     task2 = Task(
-        user_id=test_user_id,
+        user_id=test_user_id_str,
         title="Due next week",
         due_date=today + timedelta(days=7),
         priority=Priority.MEDIUM,
         status=Status.PENDING,
     )
     task3 = Task(
-        user_id=test_user_id,
+        user_id=test_user_id_str,
         title="No due date",
         due_date=None,
         priority=Priority.MEDIUM,
@@ -578,7 +578,7 @@ async def test_sort_by_due_date_asc(session: Session, test_user_id: UUID):
     # Act
     tasks = await task_service.get_user_tasks(
         session=session,
-        user_id=test_user_id,
+        user_id=test_user_id_str,
         sort_by=TaskSortBy.DUE_DATE,
         order=SortOrder.ASC,
     )
@@ -590,7 +590,7 @@ async def test_sort_by_due_date_asc(session: Session, test_user_id: UUID):
     assert tasks[2].title == "No due date"  # NULL last
 
 
-async def test_sort_by_due_date_desc(session: Session, test_user_id: UUID):
+async def test_sort_by_due_date_desc(session: Session, test_user_id_str: str):
     """Test sorting tasks by due_date descending (T079).
 
     Validates:
@@ -601,21 +601,21 @@ async def test_sort_by_due_date_desc(session: Session, test_user_id: UUID):
 
     # Arrange
     task1 = Task(
-        user_id=test_user_id,
+        user_id=test_user_id_str,
         title="Due tomorrow",
         due_date=today + timedelta(days=1),
         priority=Priority.MEDIUM,
         status=Status.PENDING,
     )
     task2 = Task(
-        user_id=test_user_id,
+        user_id=test_user_id_str,
         title="Due next week",
         due_date=today + timedelta(days=7),
         priority=Priority.MEDIUM,
         status=Status.PENDING,
     )
     task3 = Task(
-        user_id=test_user_id,
+        user_id=test_user_id_str,
         title="No due date",
         due_date=None,
         priority=Priority.MEDIUM,
@@ -628,7 +628,7 @@ async def test_sort_by_due_date_desc(session: Session, test_user_id: UUID):
     # Act
     tasks = await task_service.get_user_tasks(
         session=session,
-        user_id=test_user_id,
+        user_id=test_user_id_str,
         sort_by=TaskSortBy.DUE_DATE,
         order=SortOrder.DESC,
     )
@@ -640,7 +640,7 @@ async def test_sort_by_due_date_desc(session: Session, test_user_id: UUID):
     assert tasks[2].title == "No due date"  # NULL last
 
 
-async def test_sort_by_priority_desc(session: Session, test_user_id: UUID):
+async def test_sort_by_priority_desc(session: Session, test_user_id_str: str):
     """Test sorting tasks by priority descending (high → medium → low).
 
     Validates:
@@ -650,19 +650,19 @@ async def test_sort_by_priority_desc(session: Session, test_user_id: UUID):
     """
     # Arrange
     low_task = Task(
-        user_id=test_user_id,
+        user_id=test_user_id_str,
         title="Low priority",
         priority=Priority.LOW,
         status=Status.PENDING,
     )
     high_task = Task(
-        user_id=test_user_id,
+        user_id=test_user_id_str,
         title="High priority",
         priority=Priority.HIGH,
         status=Status.PENDING,
     )
     medium_task = Task(
-        user_id=test_user_id,
+        user_id=test_user_id_str,
         title="Medium priority",
         priority=Priority.MEDIUM,
         status=Status.PENDING,
@@ -674,7 +674,7 @@ async def test_sort_by_priority_desc(session: Session, test_user_id: UUID):
     # Act
     tasks = await task_service.get_user_tasks(
         session=session,
-        user_id=test_user_id,
+        user_id=test_user_id_str,
         sort_by=TaskSortBy.PRIORITY,
         order=SortOrder.DESC,
     )
@@ -686,7 +686,7 @@ async def test_sort_by_priority_desc(session: Session, test_user_id: UUID):
     assert tasks[2].priority == Priority.LOW
 
 
-async def test_sort_by_priority_asc(session: Session, test_user_id: UUID):
+async def test_sort_by_priority_asc(session: Session, test_user_id_str: str):
     """Test sorting tasks by priority ascending (low → medium → high).
 
     Validates:
@@ -696,19 +696,19 @@ async def test_sort_by_priority_asc(session: Session, test_user_id: UUID):
     """
     # Arrange
     low_task = Task(
-        user_id=test_user_id,
+        user_id=test_user_id_str,
         title="Low priority",
         priority=Priority.LOW,
         status=Status.PENDING,
     )
     high_task = Task(
-        user_id=test_user_id,
+        user_id=test_user_id_str,
         title="High priority",
         priority=Priority.HIGH,
         status=Status.PENDING,
     )
     medium_task = Task(
-        user_id=test_user_id,
+        user_id=test_user_id_str,
         title="Medium priority",
         priority=Priority.MEDIUM,
         status=Status.PENDING,
@@ -720,7 +720,7 @@ async def test_sort_by_priority_asc(session: Session, test_user_id: UUID):
     # Act
     tasks = await task_service.get_user_tasks(
         session=session,
-        user_id=test_user_id,
+        user_id=test_user_id_str,
         sort_by=TaskSortBy.PRIORITY,
         order=SortOrder.ASC,
     )
@@ -732,7 +732,7 @@ async def test_sort_by_priority_asc(session: Session, test_user_id: UUID):
     assert tasks[2].priority == Priority.HIGH
 
 
-async def test_sort_by_status(session: Session, test_user_id: UUID):
+async def test_sort_by_status(session: Session, test_user_id_str: str):
     """Test sorting tasks by status.
 
     Validates:
@@ -740,13 +740,13 @@ async def test_sort_by_status(session: Session, test_user_id: UUID):
     """
     # Arrange
     pending_task = Task(
-        user_id=test_user_id,
+        user_id=test_user_id_str,
         title="Pending task",
         status=Status.PENDING,
         priority=Priority.MEDIUM,
     )
     completed_task = Task(
-        user_id=test_user_id,
+        user_id=test_user_id_str,
         title="Completed task",
         status=Status.COMPLETED,
         priority=Priority.MEDIUM,
@@ -758,7 +758,7 @@ async def test_sort_by_status(session: Session, test_user_id: UUID):
     # Act - ASC should be completed before pending
     tasks = await task_service.get_user_tasks(
         session=session,
-        user_id=test_user_id,
+        user_id=test_user_id_str,
         sort_by=TaskSortBy.STATUS,
         order=SortOrder.ASC,
     )
@@ -769,7 +769,7 @@ async def test_sort_by_status(session: Session, test_user_id: UUID):
     assert tasks[1].status == Status.PENDING
 
 
-async def test_sort_by_created_at_default(session: Session, test_user_id: UUID):
+async def test_sort_by_created_at_default(session: Session, test_user_id_str: str):
     """Test default sorting by created_at DESC.
 
     Validates:
@@ -778,7 +778,7 @@ async def test_sort_by_created_at_default(session: Session, test_user_id: UUID):
     """
     # Arrange - create tasks in sequence
     task1 = Task(
-        user_id=test_user_id,
+        user_id=test_user_id_str,
         title="First task",
         priority=Priority.MEDIUM,
         status=Status.PENDING,
@@ -787,7 +787,7 @@ async def test_sort_by_created_at_default(session: Session, test_user_id: UUID):
     session.commit()
 
     task2 = Task(
-        user_id=test_user_id,
+        user_id=test_user_id_str,
         title="Second task",
         priority=Priority.MEDIUM,
         status=Status.PENDING,
@@ -796,7 +796,7 @@ async def test_sort_by_created_at_default(session: Session, test_user_id: UUID):
     session.commit()
 
     task3 = Task(
-        user_id=test_user_id,
+        user_id=test_user_id_str,
         title="Third task",
         priority=Priority.MEDIUM,
         status=Status.PENDING,
@@ -807,7 +807,7 @@ async def test_sort_by_created_at_default(session: Session, test_user_id: UUID):
     # Act - no sort_by or order specified
     tasks = await task_service.get_user_tasks(
         session=session,
-        user_id=test_user_id,
+        user_id=test_user_id_str,
     )
 
     # Assert - newest first
@@ -820,7 +820,7 @@ async def test_sort_by_created_at_default(session: Session, test_user_id: UUID):
 # T092: Write unit tests for combined filter and sort
 
 
-async def test_filter_pending_sort_by_due_date(session: Session, test_user_id: UUID):
+async def test_filter_pending_sort_by_due_date(session: Session, test_user_id_str: str):
     """Test combining status filter with sorting.
 
     Validates:
@@ -831,21 +831,21 @@ async def test_filter_pending_sort_by_due_date(session: Session, test_user_id: U
 
     # Arrange - create mixed tasks
     pending1 = Task(
-        user_id=test_user_id,
+        user_id=test_user_id_str,
         title="Pending due tomorrow",
         status=Status.PENDING,
         due_date=today + timedelta(days=1),
         priority=Priority.MEDIUM,
     )
     pending2 = Task(
-        user_id=test_user_id,
+        user_id=test_user_id_str,
         title="Pending due next week",
         status=Status.PENDING,
         due_date=today + timedelta(days=7),
         priority=Priority.MEDIUM,
     )
     completed = Task(
-        user_id=test_user_id,
+        user_id=test_user_id_str,
         title="Completed task",
         status=Status.COMPLETED,
         due_date=today + timedelta(days=3),
@@ -858,7 +858,7 @@ async def test_filter_pending_sort_by_due_date(session: Session, test_user_id: U
     # Act - filter pending, sort by due_date ASC
     tasks = await task_service.get_user_tasks(
         session=session,
-        user_id=test_user_id,
+        user_id=test_user_id_str,
         status=TaskStatusFilter.PENDING,
         sort_by=TaskSortBy.DUE_DATE,
         order=SortOrder.ASC,
@@ -871,7 +871,7 @@ async def test_filter_pending_sort_by_due_date(session: Session, test_user_id: U
     assert tasks[1].title == "Pending due next week"
 
 
-async def test_filter_overdue_sort_by_priority(session: Session, test_user_id: UUID):
+async def test_filter_overdue_sort_by_priority(session: Session, test_user_id_str: str):
     """Test filtering overdue tasks and sorting by priority.
 
     Validates:
@@ -884,21 +884,21 @@ async def test_filter_overdue_sort_by_priority(session: Session, test_user_id: U
 
     # Arrange
     overdue_high = Task(
-        user_id=test_user_id,
+        user_id=test_user_id_str,
         title="Overdue high priority",
         status=Status.PENDING,
         due_date=yesterday,
         priority=Priority.HIGH,
     )
     overdue_low = Task(
-        user_id=test_user_id,
+        user_id=test_user_id_str,
         title="Overdue low priority",
         status=Status.PENDING,
         due_date=two_days_ago,
         priority=Priority.LOW,
     )
     pending_future = Task(
-        user_id=test_user_id,
+        user_id=test_user_id_str,
         title="Future task",
         status=Status.PENDING,
         due_date=today + timedelta(days=1),
@@ -911,7 +911,7 @@ async def test_filter_overdue_sort_by_priority(session: Session, test_user_id: U
     # Act
     tasks = await task_service.get_user_tasks(
         session=session,
-        user_id=test_user_id,
+        user_id=test_user_id_str,
         status=TaskStatusFilter.OVERDUE,
         sort_by=TaskSortBy.PRIORITY,
         order=SortOrder.DESC,
@@ -927,15 +927,15 @@ async def test_filter_overdue_sort_by_priority(session: Session, test_user_id: U
 
 # T116-T117: Update and Complete Task Service Tests
 
-async def test_update_task_success(session: Session, test_user_id: UUID):
+async def test_update_task_success(session: Session, test_user_id_str: str):
     """T116: Update task with valid data."""
     # Arrange
     task_data = TaskCreate(title="Original", priority=Priority.MEDIUM)
-    task = await task_service.create_task(session, test_user_id, task_data)
+    task = await task_service.create_task(session, test_user_id_str, task_data)
 
     # Act
     update_data = TaskUpdate(title="Updated", priority=Priority.HIGH)
-    updated = await task_service.update_task(session, task.id, test_user_id, update_data)
+    updated = await task_service.update_task(session, task.id, test_user_id_str, update_data)
 
     # Assert
     assert updated is not None
@@ -943,37 +943,37 @@ async def test_update_task_success(session: Session, test_user_id: UUID):
     assert updated.priority == Priority.HIGH
 
 
-async def test_update_task_not_found(session: Session, test_user_id: UUID):
+async def test_update_task_not_found(session: Session, test_user_id_str: str):
     """T116: Update non-existent task returns None."""
     from uuid import uuid4
     non_existent = uuid4()
     update_data = TaskUpdate(title="Updated")
-    result = await task_service.update_task(session, non_existent, test_user_id, update_data)
+    result = await task_service.update_task(session, non_existent, test_user_id_str, update_data)
     assert result is None
 
 
-async def test_complete_task_success(session: Session, test_user_id: UUID):
+async def test_complete_task_success(session: Session, test_user_id_str: str):
     """T117: Complete pending task."""
     # Arrange
     task_data = TaskCreate(title="Complete me", status=Status.PENDING)
-    task = await task_service.create_task(session, test_user_id, task_data)
+    task = await task_service.create_task(session, test_user_id_str, task_data)
 
     # Act
-    completed = await task_service.complete_task(session, task.id, test_user_id)
+    completed = await task_service.complete_task(session, task.id, test_user_id_str)
 
     # Assert
     assert completed is not None
     assert completed.status == Status.COMPLETED
 
 
-async def test_complete_task_idempotent(session: Session, test_user_id: UUID):
+async def test_complete_task_idempotent(session: Session, test_user_id_str: str):
     """T117: Complete task is idempotent."""
     # Arrange
     task_data = TaskCreate(title="Already done", status=Status.COMPLETED)
-    task = await task_service.create_task(session, test_user_id, task_data)
+    task = await task_service.create_task(session, test_user_id_str, task_data)
 
     # Act - Complete already-completed task
-    result = await task_service.complete_task(session, task.id, test_user_id)
+    result = await task_service.complete_task(session, task.id, test_user_id_str)
 
     # Assert - Should succeed without error
     assert result is not None
@@ -983,7 +983,7 @@ async def test_complete_task_idempotent(session: Session, test_user_id: UUID):
 # T135-T136: Delete Task Service Tests
 
 
-async def test_delete_task_success(session: Session, test_user_id: UUID):
+async def test_delete_task_success(session: Session, test_user_id_str: str):
     """T135: Test deleting a task owned by the user.
 
     Validates:
@@ -997,21 +997,21 @@ async def test_delete_task_success(session: Session, test_user_id: UUID):
         description="This task will be deleted",
         priority=Priority.MEDIUM,
     )
-    task = await task_service.create_task(session, test_user_id, task_data)
+    task = await task_service.create_task(session, test_user_id_str, task_data)
     task_id = task.id
 
     # Verify task exists before deletion
-    existing_task = await task_service.get_task_by_id(session, task_id, test_user_id)
+    existing_task = await task_service.get_task_by_id(session, task_id, test_user_id_str)
     assert existing_task is not None
 
     # Act - delete the task
-    result = await task_service.delete_task(session, task_id, test_user_id)
+    result = await task_service.delete_task(session, task_id, test_user_id_str)
 
     # Assert - deletion successful
     assert result is True
 
     # Verify task is deleted (no longer retrievable)
-    deleted_task = await task_service.get_task_by_id(session, task_id, test_user_id)
+    deleted_task = await task_service.get_task_by_id(session, task_id, test_user_id_str)
     assert deleted_task is None
 
     # Verify task removed from database
@@ -1019,7 +1019,7 @@ async def test_delete_task_success(session: Session, test_user_id: UUID):
     assert db_task is None
 
 
-async def test_delete_task_not_found(session: Session, test_user_id: UUID):
+async def test_delete_task_not_found(session: Session, test_user_id_str: str):
     """T136: Test deleting a non-existent task.
 
     Validates:
@@ -1032,14 +1032,14 @@ async def test_delete_task_not_found(session: Session, test_user_id: UUID):
     non_existent_id = uuid4()
 
     # Act - attempt to delete non-existent task
-    result = await task_service.delete_task(session, non_existent_id, test_user_id)
+    result = await task_service.delete_task(session, non_existent_id, test_user_id_str)
 
     # Assert - deletion failed (task not found)
     assert result is False
 
 
 async def test_delete_task_not_owned(
-    session: Session, test_user_id: UUID, test_user_id_2: UUID
+    session: Session, test_user_id_str: str, test_user_id_2_str: str
 ):
     """T136: Test deleting a task NOT owned by the requesting user.
 
@@ -1054,26 +1054,26 @@ async def test_delete_task_not_owned(
         description="Only User A can delete this",
         priority=Priority.HIGH,
     )
-    task = await task_service.create_task(session, test_user_id, task_data)
+    task = await task_service.create_task(session, test_user_id_str, task_data)
     task_id = task.id
 
     # Verify task exists for User A
-    existing_task = await task_service.get_task_by_id(session, task_id, test_user_id)
+    existing_task = await task_service.get_task_by_id(session, task_id, test_user_id_str)
     assert existing_task is not None
 
     # Act - User B tries to delete User A's task
-    result = await task_service.delete_task(session, task_id, test_user_id_2)
+    result = await task_service.delete_task(session, task_id, test_user_id_2_str)
 
     # Assert - deletion failed (not owned)
     assert result is False
 
     # Verify task still exists for User A (not deleted)
-    still_exists = await task_service.get_task_by_id(session, task_id, test_user_id)
+    still_exists = await task_service.get_task_by_id(session, task_id, test_user_id_str)
     assert still_exists is not None
     assert still_exists.id == task_id
-    assert still_exists.user_id == test_user_id
+    assert still_exists.user_id == test_user_id_str
 
     # Verify task is still in database
     db_task = session.get(Task, task_id)
     assert db_task is not None
-    assert db_task.user_id == test_user_id
+    assert db_task.user_id == test_user_id_str

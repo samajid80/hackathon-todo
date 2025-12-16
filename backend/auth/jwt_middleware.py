@@ -1,43 +1,71 @@
-"""JWT authentication middleware for FastAPI.
+"""JWT authentication middleware for FastAPI with EdDSA + JWKS support.
 
 This module provides JWT token validation and user extraction from
-Better-Auth generated tokens. All task-related endpoints require valid JWT.
+Better-Auth generated EdDSA tokens using public keys from JWKS endpoint.
 """
 
 import os
-from typing import Annotated
+import requests
+from datetime import datetime, timedelta
+from typing import Annotated, Dict, Any
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from jose import JWTError, jwt
+import jwt
+from jwt import PyJWKClient
+from jwt.exceptions import PyJWTError
 
 
-def get_jwt_secret() -> str:
-    """Get JWT secret from environment, with validation.
+# JWKS client (cached automatically by PyJWT)
+_jwks_client: PyJWKClient | None = None
+
+
+def get_better_auth_url() -> str:
+    """Get Better Auth URL from environment.
 
     Returns:
-        str: JWT secret key
+        str: Better Auth base URL (default: http://localhost:3000)
+    """
+    return os.getenv("BETTER_AUTH_URL", "http://localhost:3000")
+
+
+def get_jwks_client() -> PyJWKClient:
+    """Get or create JWKS client for Better Auth.
+
+    Returns:
+        PyJWKClient: Client for fetching and caching JWKS
 
     Raises:
-        ValueError: If JWT_SECRET is not set (in non-test environment)
+        HTTPException: If JWKS client cannot be created
     """
-    secret = os.getenv("JWT_SECRET", "")
-    if not secret:
-        raise ValueError(
-            "JWT_SECRET environment variable is not set. "
-            "Please configure it in .env file or environment. "
-            "It must match the BETTER_AUTH_SECRET in the frontend."
+    global _jwks_client
+
+    if _jwks_client is not None:
+        return _jwks_client
+
+    try:
+        better_auth_url = get_better_auth_url()
+        jwks_url = f"{better_auth_url}/api/auth/jwks"
+
+        print(f"[JWKS] Initializing JWKS client for {jwks_url}")
+
+        # PyJWKClient automatically caches JWKS and refreshes when needed
+        _jwks_client = PyJWKClient(
+            jwks_url,
+            cache_keys=True,
+            max_cached_keys=16,
+            cache_jwk_set=True,
+            lifespan=3600  # Cache for 1 hour
         )
-    return secret
 
+        return _jwks_client
 
-def get_jwt_algorithm() -> str:
-    """Get JWT algorithm from environment.
-
-    Returns:
-        str: JWT algorithm (default: HS256)
-    """
-    return os.getenv("JWT_ALGORITHM", "HS256")
+    except Exception as e:
+        print(f"[JWKS] Failed to create JWKS client: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Unable to initialize JWKS client: {str(e)}"
+        )
 
 
 # HTTP Bearer token scheme for FastAPI
@@ -60,11 +88,11 @@ class CurrentUser:
 def get_current_user(
     credentials: Annotated[HTTPAuthorizationCredentials, Depends(security)]
 ) -> CurrentUser:
-    """Extract and validate user from JWT token.
+    """Extract and validate user from EdDSA JWT token using JWKS.
 
     This dependency validates the JWT token from the Authorization header
-    and extracts the user_id claim. Use this dependency on all protected
-    endpoints to ensure user authentication.
+    using the public key from Better Auth's JWKS endpoint and extracts
+    the user_id claim.
 
     Args:
         credentials: HTTP Bearer token from Authorization header
@@ -90,39 +118,41 @@ def get_current_user(
     try:
         # Extract token from credentials
         token = credentials.credentials
-        print(f"[JWT Debug] Received token (first 50 chars): {token[:50]}...")
 
-        # Get JWT configuration
-        jwt_secret = get_jwt_secret()
-        jwt_algorithm = get_jwt_algorithm()
-        print(f"[JWT Debug] Using secret: {jwt_secret[:20]}... and algorithm: {jwt_algorithm}")
+        # Get JWKS client (cached)
+        jwks_client = get_jwks_client()
 
-        # Decode JWT without verification first to see payload
-        print(f"[JWT Debug] Attempting to decode token WITHOUT verification...")
-        unverified_payload = jwt.get_unverified_claims(token)
-        print(f"[JWT Debug] Unverified payload: {unverified_payload}")
+        # Get the signing key from JWKS based on token's kid
+        signing_key = jwks_client.get_signing_key_from_jwt(token)
 
-        # For now, use unverified payload (TODO: Add proper EdDSA verification with JWKS)
-        payload = unverified_payload
-
-        # Debug: Print JWT payload to see what Better-Auth is sending
-        print(f"[JWT Debug] Decoded payload: {payload}")
+        # Decode and verify JWT token using public key
+        # PyJWT automatically handles EdDSA, ES256, RS256, etc.
+        # HS256 is included for testing purposes
+        payload = jwt.decode(
+            token,
+            signing_key.key,
+            algorithms=["EdDSA", "ES256", "ES384", "ES512", "RS256", "HS256"],
+            options={"verify_aud": False}  # Better Auth doesn't always set audience
+        )
 
         # Extract user_id from token claims
+        # Better Auth uses 'sub' for user ID
         user_id: str | None = payload.get("sub") or payload.get("user_id") or payload.get("id")
         if not user_id:
             print(f"[JWT Debug] No 'sub', 'user_id', or 'id' found in payload. Available keys: {list(payload.keys())}")
             raise credentials_exception
 
-        print(f"[JWT Debug] Extracted user_id: {user_id}")
-
         # Extract optional email
         email: str | None = payload.get("email")
 
+        print(f"[JWT] Successfully validated token for user_id={user_id}")
         return CurrentUser(user_id=user_id, email=email)
 
-    except JWTError as e:
-        print(f"[JWT Debug] JWTError occurred: {type(e).__name__}: {str(e)}")
+    except HTTPException:
+        # Re-raise HTTP exceptions (JWKS fetch errors, etc.)
+        raise
+    except PyJWTError as e:
+        print(f"[JWT Debug] PyJWTError occurred: {type(e).__name__}: {str(e)}")
         raise credentials_exception
     except Exception as e:
         print(f"[JWT Debug] Unexpected error: {type(e).__name__}: {str(e)}")
