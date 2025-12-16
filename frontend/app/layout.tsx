@@ -23,8 +23,77 @@ import { ToastRenderer } from "@/components/ToastRenderer";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Hackathon Todo App",
-  description: "A full-stack task management application built with Next.js and FastAPI",
+  title: {
+    default: "Hackathon Todo - Organize Your Tasks Effortlessly",
+    template: "%s | Hackathon Todo",
+  },
+  description:
+    "A modern, secure task management application built for productivity and simplicity. Manage tasks efficiently with powerful filtering, sorting, and secure authentication.",
+  keywords: [
+    "task management",
+    "todo app",
+    "productivity",
+    "task organizer",
+    "secure todo",
+    "Next.js",
+    "React",
+    "full-stack",
+  ],
+  authors: [{ name: "Hackathon Todo Team" }],
+  creator: "Hackathon Todo Team",
+  publisher: "Hackathon Todo",
+  formatDetection: {
+    email: false,
+    address: false,
+    telephone: false,
+  },
+  openGraph: {
+    type: "website",
+    locale: "en_US",
+    url: "https://hackathon-todo.vercel.app",
+    title: "Hackathon Todo - Organize Your Tasks Effortlessly",
+    description:
+      "A modern, secure task management application built for productivity and simplicity.",
+    siteName: "Hackathon Todo",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "Hackathon Todo - Task Management App",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Hackathon Todo - Organize Your Tasks Effortlessly",
+    description:
+      "A modern, secure task management application built for productivity and simplicity.",
+    images: ["/og-image.png"],
+    creator: "@hackathontodo",
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-video-preview": -1,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+    },
+  },
+  icons: {
+    icon: "/favicon.ico",
+    shortcut: "/favicon-16x16.png",
+    apple: "/apple-touch-icon.png",
+  },
+  manifest: "/site.webmanifest",
+  viewport: {
+    width: "device-width",
+    initialScale: 1,
+    maximumScale: 5,
+  },
 };
 
 export default function RootLayout({
