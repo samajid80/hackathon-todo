@@ -497,3 +497,10 @@ The project constitution (`.specify/memory/constitution.md`) defines core princi
 - Backend: FastAPI + JWT authentication
 - Database: Neon PostgreSQL
 - Architecture: Full-stack separation (frontend/, backend/, database/)
+
+## Active Technologies
+- Python 3.13 (backend only - no frontend changes required) + python-jose[cryptography] (already installed), FastAPI security module (001-jwt-auth-fix)
+- N/A (no data model changes) (001-jwt-auth-fix)
+
+## Recent Changes
+- 001-jwt-auth-fix: Added Python 3.13 (backend only - no frontend changes required) + python-jose[cryptography] (already installed), FastAPI security module
