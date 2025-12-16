@@ -497,3 +497,10 @@ The project constitution (`.specify/memory/constitution.md`) defines core princi
 - Backend: FastAPI + JWT authentication
 - Database: Neon PostgreSQL
 - Architecture: Full-stack separation (frontend/, backend/, database/)
+
+## Active Technologies
+- TypeScript 5.x with Next.js 16 (App Router) (001-ui-redesign)
+- N/A (uses existing Better-Auth session management) (001-ui-redesign)
+
+## Recent Changes
+- 001-ui-redesign: Added TypeScript 5.x with Next.js 16 (App Router)
