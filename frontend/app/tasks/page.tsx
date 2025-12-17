@@ -28,9 +28,9 @@
 
 "use client";
 
-import React, { useEffect, useState, useRef, useCallback } from "react";
+import React, { useEffect, useState, useRef, useCallback, Suspense } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { getTasks, deleteTask } from "@/lib/api/tasks";
 import { ApiError } from "@/lib/api/tasks";
 import { Task } from "@/types/task";
@@ -41,10 +41,10 @@ import { TaskSort, SortField, SortOrder } from "@/components/TaskSort";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/lib/toast-context";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { SuccessToast } from "@/components/alerts/SuccessToast";
 
 export default function TasksPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const toast = useToast();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -69,9 +69,6 @@ export default function TasksPage() {
   const [filterStatus, setFilterStatus] = useState<FilterStatus>("all");
   const [sortBy, setSortBy] = useState<SortField>("created_at");
   const [sortOrder, setSortOrder] = useState<SortOrder>("desc");
-
-  // Ref to track if redirect toast has been shown (prevents duplicate in dev mode)
-  const toastShownRef = useRef(false);
 
   // Ref to track current task count for pagination
   const tasksCountRef = useRef(0);
@@ -140,33 +137,6 @@ export default function TasksPage() {
   useEffect(() => {
     fetchTasks();
   }, [fetchTasks]);
-
-  // Separate effect for handling redirect toasts and refreshing
-  useEffect(() => {
-    const isCreated = searchParams.get("created") === "true";
-    const isUpdated = searchParams.get("updated") === "true";
-
-    // Check if we were redirected from task creation
-    if (isCreated && !toastShownRef.current) {
-      toast.success("Task created successfully!");
-      toastShownRef.current = true;
-      // Clean up URL
-      router.replace("/tasks");
-    }
-
-    // Check if we were redirected from task update
-    if (isUpdated && !toastShownRef.current) {
-      toast.success("Task updated successfully!");
-      toastShownRef.current = true;
-      // Clean up URL
-      router.replace("/tasks");
-    }
-
-    // Refresh task list whenever we return from creating or updating
-    if (isCreated || isUpdated) {
-      fetchTasks();
-    }
-  }, [searchParams, fetchTasks, router, toast]);
 
   const handleEdit = (taskId: string) => {
     router.push(`/tasks/${taskId}/edit`);
@@ -528,6 +498,25 @@ export default function TasksPage() {
   // Tasks list
   return (
     <div>
+      {/* Success toast notifications with Suspense boundaries */}
+      <Suspense fallback={null}>
+        <SuccessToast
+          paramName="created"
+          message="Task created successfully!"
+          onShow={toast.success}
+          onDetected={fetchTasks}
+        />
+      </Suspense>
+
+      <Suspense fallback={null}>
+        <SuccessToast
+          paramName="updated"
+          message="Task updated successfully!"
+          onShow={toast.success}
+          onDetected={fetchTasks}
+        />
+      </Suspense>
+
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
