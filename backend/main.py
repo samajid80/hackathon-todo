@@ -25,9 +25,9 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from .auth.rate_limiter import RateLimitMiddleware
-from .db import create_db_and_tables
-from .routes import tasks
+from backend.auth.rate_limiter import RateLimitMiddleware
+from backend.db import create_db_and_tables
+from backend.routes import tasks
 
 # Application metadata with enhanced OpenAPI documentation (T161)
 app = FastAPI(
