@@ -1,0 +1,6 @@
+# Root requirements.txt for Railway deployment
+# This ensures Railway detects Python and installs pip properly
+# The actual application dependencies are in backend/pyproject.toml
+
+# Install the backend package from the backend directory
+-e ./backend
