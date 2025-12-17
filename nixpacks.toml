@@ -1,0 +1,11 @@
+# Railway/Nixpacks configuration for backend deployment
+# This tells Railway to treat this as a Python project
+
+[phases.setup]
+nixPkgs = ["python313", "pip"]
+
+[phases.install]
+cmds = ["pip install -e ./backend"]
+
+[start]
+cmd = "uvicorn backend.main:app --host 0.0.0.0 --port $PORT"
