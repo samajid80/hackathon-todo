@@ -26,19 +26,77 @@ console.log("[Auth Config] DATABASE_URL is set:", !!process.env.DATABASE_URL);
 console.log("[Auth Config] DATABASE_URL starts with:", process.env.DATABASE_URL?.substring(0, 20));
 
 // Create database connection using Kysely
-const db = new Kysely({
-  dialect: new PostgresDialect({
-    pool: new Pool({
-      connectionString: process.env.DATABASE_URL,
-      ssl: { rejectUnauthorized: false },
-    }),
-  }),
-});
+// const db = new Kysely({
+//   dialect: new PostgresDialect({
+//     pool: new Pool({
+//       connectionString: process.env.DATABASE_URL,
+//       ssl: { rejectUnauthorized: false },
+//     }),
+//   }),
+// });
+
+// export const auth = betterAuth({
+//   // Database configuration for user storage
+//   database: {
+//     db: db,
+//     type: "postgres",
+//   },
+
+//   // Email/password authentication
+//   emailAndPassword: {
+//     enabled: true,
+//     minPasswordLength: 8,
+//     maxPasswordLength: 128,
+//   },
+
+//   // Session configuration
+//   session: {
+//     // Session expiration (24 hours)
+//     expiresIn: 60 * 60 * 24, // 1 day in seconds
+
+//     // Update session on activity
+//     updateAge: 60 * 60, // Update every hour
+//   },
+
+//   // Advanced options
+//   advanced: {
+//     // Use secure cookies in production
+//     useSecureCookies: process.env.NODE_ENV === "production",
+
+//     // Cookie options
+//     cookiePrefix: "hackathon-todo",
+//   },
+
+//   // Next.js integration
+//   plugins: [
+//     jwt(),  // JWT plugin uses EdDSA (asymmetric) by default
+//             // Backend verifies tokens using public key from JWKS
+//             // JWKS endpoint: http://localhost:3000/api/auth/jwks
+//     nextCookies(), // Must be last
+//   ],
+// });
+
+
+let db: Kysely<any> | null = null;
+
+function getDb() {
+  if (!db) {
+    db = new Kysely({
+      dialect: new PostgresDialect({
+        pool: new Pool({
+          connectionString: process.env.DATABASE_URL,
+          ssl: { rejectUnauthorized: false },
+        }),
+      }),
+    });
+  }
+  return db;
+}
 
 export const auth = betterAuth({
   // Database configuration for user storage
   database: {
-    db: db,
+    db: getDb(),
     type: "postgres",
   },
 
