@@ -14,13 +14,14 @@
 
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import React, { useState, useEffect, Suspense } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { signIn, useSession } from "@/lib/auth-client";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { ErrorMessage } from "@/components/ui/ErrorMessage";
+import { SessionExpiredAlert } from "@/components/alerts/SessionExpiredAlert";
 
 interface FormErrors {
   email?: string;
@@ -29,7 +30,6 @@ interface FormErrors {
 
 export default function LoginPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const { data: session, isPending } = useSession();
 
   const [email, setEmail] = useState("");
@@ -38,22 +38,12 @@ export default function LoginPage() {
   const [generalError, setGeneralError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
-  // Check for session expiration message
-  const sessionExpired = searchParams.get("expired") === "true";
-
   // T037: Auto-redirect if already authenticated
   useEffect(() => {
     if (!isPending && session) {
       router.push("/tasks");
     }
   }, [session, isPending, router]);
-
-  // T040: Display session expiration message
-  useEffect(() => {
-    if (sessionExpired) {
-      setGeneralError("Your session has expired. Please sign in again.");
-    }
-  }, [sessionExpired]);
 
   const validateForm = (): boolean => {
     const newErrors: FormErrors = {};
@@ -77,10 +67,8 @@ export default function LoginPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Clear previous errors (except session expiration message)
-    if (!sessionExpired) {
-      setGeneralError("");
-    }
+    // Clear previous errors
+    setGeneralError("");
     setErrors({});
 
     // Validate form
@@ -134,6 +122,11 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+      {/* T040: Session expiration detection with Suspense boundary */}
+      <Suspense fallback={null}>
+        <SessionExpiredAlert onExpired={setGeneralError} />
+      </Suspense>
+
       <div className="max-w-md w-full space-y-8">
         {/* Header */}
         <div>

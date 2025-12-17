@@ -219,7 +219,12 @@ app.add_middleware(RateLimitMiddleware)
 
 # CORS configuration - MUST be added LAST so it runs FIRST (middleware executes in reverse order)
 # This ensures CORS headers are added even if other middlewares throw errors
-CORS_ORIGINS = os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")
+# CORS configuration with robust whitespace handling
+cors_origins_str = os.getenv("CORS_ORIGINS", "http://localhost:3000")
+CORS_ORIGINS = [origin.strip() for origin in cors_origins_str.split(",") if origin.strip()]
+
+# Log CORS origins for debugging (helps verify Railway environment variables)
+print(f"[STARTUP] Configured CORS origins: {CORS_ORIGINS}")
 
 app.add_middleware(
     CORSMiddleware,
@@ -236,6 +241,11 @@ def on_startup():
 
     Creates database tables on startup. In production, use Alembic migrations.
     """
+    # Log environment for debugging
+    print(f"[STARTUP] Database URL configured: {os.getenv('DATABASE_URL') is not None}")
+    print(f"[STARTUP] CORS origins: {CORS_ORIGINS}")
+    print(f"[STARTUP] Environment: {os.getenv('ENVIRONMENT', 'development')}")
+
     create_db_and_tables()
 
 
@@ -267,6 +277,27 @@ def read_root():
         "message": "Hackathon Todo API",
         "version": "1.0.0",
         "docs": "/api/docs",
+    }
+
+
+@app.get(
+    "/__debug__/cors",
+    summary="CORS Debug Info",
+    description="Show current CORS configuration (only for debugging)",
+    tags=["Debug"],
+)
+def debug_cors():
+    """Debug endpoint to show CORS configuration.
+
+    Returns:
+        dict: Current CORS origins and configuration
+    """
+    return {
+        "cors_origins": CORS_ORIGINS,
+        "cors_origins_raw": os.getenv("CORS_ORIGINS"),
+        "allow_credentials": True,
+        "allow_methods": ["*"],
+        "allow_headers": ["*"],
     }
 
 
