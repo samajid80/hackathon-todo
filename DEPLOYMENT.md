@@ -135,11 +135,25 @@ Expected output:
 
 Railway will auto-detect your Python application.
 
-1. **Select Root Directory**:
-   - If monorepo: Set root directory to `/backend`
-   - If separate repos: Leave as default
+**IMPORTANT - Root Directory Configuration:**
 
-2. **Service Name**: `hackathon-todo-api` (or your preference)
+You have two options for configuring the root directory:
+
+**Option A: Deploy Entire Repository (Recommended) ⭐**
+- **Root Directory**: Leave empty or set to `/`
+- **Why?**: Your code imports use `backend.` prefix (e.g., `from backend.auth...`)
+- **Advantage**: Same code works for local development and production
+- **Start Command**: `uvicorn backend.main:app --host 0.0.0.0 --port $PORT`
+
+**Option B: Deploy Backend Folder Only**
+- **Root Directory**: Set to `/backend`
+- **Requirement**: Must change imports in `main.py` from `from backend.auth...` to `from auth...`
+- **Disadvantage**: Different code for local vs production
+- **Start Command**: `uvicorn main:app --host 0.0.0.0 --port $PORT`
+
+**We recommend Option A** to keep your codebase consistent across environments.
+
+**Service Name**: `hackathon-todo-api` (or your preference)
 
 ### 2.3 Generate JWT Secret
 
@@ -178,14 +192,26 @@ ENVIRONMENT=production
 
 ### 2.5 Configure Build Settings
 
-Railway should auto-detect Python, but verify:
+Railway should auto-detect Python, but verify the commands match your chosen root directory option:
+
+**If using Option A (Entire Repository - Recommended):**
 
 1. Click "Settings" tab
 2. Check **Build**:
-   - **Build Command**: `pip install -e .`
+   - **Root Directory**: (empty) or `/`
+   - **Build Command**: `pip install -e ./backend`
    - **Start Command**: `uvicorn backend.main:app --host 0.0.0.0 --port $PORT`
 
-If not set, click "Edit" and add these commands.
+**If using Option B (Backend Folder Only):**
+
+1. Click "Settings" tab
+2. Check **Build**:
+   - **Root Directory**: `/backend`
+   - **Build Command**: `pip install -e .`
+   - **Start Command**: `uvicorn main:app --host 0.0.0.0 --port $PORT`
+   - **Note**: Remember to change imports in `main.py` first!
+
+If settings are not correct, click "Edit" and update them.
 
 ### 2.6 Deploy Backend
 
@@ -569,6 +595,38 @@ psql "$DATABASE_URL" -c "SELECT 1"
    cd backend
    pip install -e .
    ```
+
+### Issue: Import Error - "attempted relative import beyond top-level package"
+
+**Symptoms**: Railway build fails with:
+```
+ImportError: attempted relative import beyond top-level package
+```
+
+**Cause**: Mismatch between Railway root directory and import statements in code.
+
+**Solution**:
+
+Your imports in `backend/main.py` use absolute imports:
+```python
+from backend.auth.rate_limiter import RateLimitMiddleware
+from backend.db import create_db_and_tables
+from backend.routes import tasks
+```
+
+These require Railway to be configured as follows:
+
+**Railway Settings**:
+- **Root Directory**: Leave empty (or set to `/`)
+- **Build Command**: `pip install -e ./backend`
+- **Start Command**: `uvicorn backend.main:app --host 0.0.0.0 --port $PORT`
+
+**Alternative**: If you want to use root directory `/backend`, you must:
+1. Change imports to relative (remove `backend.` prefix)
+2. Update start command to `uvicorn main:app --host 0.0.0.0 --port $PORT`
+3. Note: This creates inconsistency with local development
+
+**Recommended**: Keep absolute imports and deploy the entire repository (see Section 2.2)
 
 **Frontend (Vercel)**:
 ```bash
