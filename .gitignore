@@ -183,3 +183,39 @@ out/
 coverage/
 *.lcov
 *:Zone.Identifier
+
+# ========================================
+# Phase 3 Services (Chatbot)
+# ========================================
+# Environment files for Phase 3 services
+phase3-backend/.env
+phase3-backend/.env.local
+phase3-backend/.venv/
+phase3-backend/__pycache__/
+phase3-backend/*.pyc
+phase3-backend/htmlcov/
+phase3-backend/.pytest_cache/
+phase3-backend/.mypy_cache/
+phase3-backend/dist/
+phase3-backend/build/
+phase3-backend/*.egg-info/
+
+phase3-mcp-server/.env
+phase3-mcp-server/.env.local
+phase3-mcp-server/.venv/
+phase3-mcp-server/__pycache__/
+phase3-mcp-server/*.pyc
+phase3-mcp-server/htmlcov/
+phase3-mcp-server/.pytest_cache/
+phase3-mcp-server/.mypy_cache/
+phase3-mcp-server/dist/
+phase3-mcp-server/build/
+phase3-mcp-server/*.egg-info/
+
+phase3-frontend/.env.local
+phase3-frontend/.env.*.local
+phase3-frontend/node_modules/
+phase3-frontend/.next/
+phase3-frontend/out/
+phase3-frontend/dist/
+phase3-frontend/.vercel/
