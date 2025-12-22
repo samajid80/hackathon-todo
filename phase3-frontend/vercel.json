@@ -1,0 +1,23 @@
+{
+  "framework": "nextjs",
+  "buildCommand": "npm run build",
+  "installCommand": "npm install",
+  "devCommand": "npm run dev",
+  "outputDirectory": ".next",
+  "env": {
+    "NEXT_PUBLIC_API_URL": {
+      "description": "Phase 3 Backend API URL",
+      "value": "https://phase3-backend.railway.app"
+    },
+    "BETTER_AUTH_SECRET": {
+      "description": "Better Auth secret (must match JWT_SECRET from backend)"
+    },
+    "BETTER_AUTH_URL": {
+      "description": "Better Auth URL",
+      "value": "https://phase3-frontend.vercel.app"
+    },
+    "DATABASE_URL": {
+      "description": "PostgreSQL database URL from Neon"
+    }
+  }
+}
