@@ -15,6 +15,7 @@ export interface Task {
   due_date: string | null; // ISO 8601 date string (YYYY-MM-DD)
   priority: Priority;
   status: Status;
+  tags: string[]; // Task category labels (max 10, lowercase alphanumeric + hyphens)
   user_id: string;
   created_at: string; // ISO 8601 datetime string
   updated_at: string; // ISO 8601 datetime string
@@ -29,6 +30,7 @@ export interface TaskCreate {
   due_date?: string | null; // ISO 8601 date string (YYYY-MM-DD)
   priority?: Priority;
   status?: Status;
+  tags?: string[]; // Task category labels (max 10, lowercase alphanumeric + hyphens)
 }
 
 /**
@@ -40,6 +42,7 @@ export interface TaskUpdate {
   due_date?: string | null; // ISO 8601 date string (YYYY-MM-DD)
   priority?: Priority;
   status?: Status;
+  tags?: string[]; // Task category labels (max 10, lowercase alphanumeric + hyphens)
 }
 
 /**
@@ -49,6 +52,7 @@ export type FilterStatus = "all" | "pending" | "completed" | "overdue";
 
 export interface TaskFilter {
   status?: FilterStatus;
+  tags?: string[]; // Filter by tags (AND logic - task must have ALL specified tags)
 }
 
 /**

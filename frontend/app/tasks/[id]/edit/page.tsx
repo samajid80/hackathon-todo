@@ -17,13 +17,14 @@
 
 "use client";
 
-import React, { useState, useEffect, FormEvent, ChangeEvent } from "react";
+import React, { useState, useEffect, FormEvent, ChangeEvent, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import { getTask, updateTask } from "@/lib/api/tasks";
 import { Task, TaskUpdate, Priority } from "@/types/task";
 import { Button } from "@/components/ui/Button";
 import { ApiError } from "@/lib/api/tasks";
+import { TagSelector, TagSelectorRef } from "@/components/TagSelector";
 
 interface FormErrors {
   title?: string;
@@ -36,6 +37,7 @@ export default function EditTaskPage() {
   const router = useRouter();
   const params = useParams();
   const taskId = params.id as string;
+  const tagSelectorRef = useRef<TagSelectorRef>(null);
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -48,6 +50,7 @@ export default function EditTaskPage() {
     description: null,
     due_date: null,
     priority: "medium",
+    tags: [],
   });
   const [errors, setErrors] = useState<FormErrors>({});
   const [touched, setTouched] = useState<Record<string, boolean>>({});
@@ -66,6 +69,7 @@ export default function EditTaskPage() {
           description: fetchedTask.description,
           due_date: fetchedTask.due_date,
           priority: fetchedTask.priority,
+          tags: fetchedTask.tags || [],
         });
       } catch (err) {
         if (err instanceof ApiError) {
@@ -180,6 +184,11 @@ export default function EditTaskPage() {
   // Handle form submission
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+
+    // Add any pending tag in the input field before submitting
+    if (tagSelectorRef.current) {
+      tagSelectorRef.current.addPendingTag();
+    }
 
     // Mark all fields as touched
     setTouched({
@@ -574,6 +583,22 @@ export default function EditTaskPage() {
               Optional: Set a deadline for this task
             </p>
           )}
+        </div>
+
+        {/* Tags field (T026) */}
+        <div>
+          <label
+            htmlFor="tags"
+            className="block text-sm font-medium text-gray-700 mb-1"
+          >
+            Tags
+          </label>
+          <TagSelector
+            ref={tagSelectorRef}
+            selectedTags={formData.tags || []}
+            onChange={(tags) => setFormData((prev) => ({ ...prev, tags }))}
+            placeholder="Add tags (e.g., work, urgent, personal)"
+          />
         </div>
 
         {/* Form actions */}

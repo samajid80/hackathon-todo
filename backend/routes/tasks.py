@@ -36,7 +36,8 @@ class PaginatedTasksResponse(BaseModel):
     summary="Create a new task",
     description="Create a new task for the authenticated user. "
     "Title is required and must not be empty. "
-    "Description, due_date, and priority are optional.",
+    "Description, due_date, priority, and tags are optional. "
+    "Tags support: max 10 tags, 1-50 chars each, lowercase alphanumeric + hyphens.",
 )
 async def create_task(
     task_create: TaskCreate,
@@ -64,7 +65,8 @@ async def create_task(
             "title": "Complete project proposal",
             "description": "Write and submit the Q1 project proposal",
             "due_date": "2025-01-15",
-            "priority": "high"
+            "priority": "high",
+            "tags": ["work", "urgent"]
         }
 
     Example Response (201 Created):
@@ -75,6 +77,7 @@ async def create_task(
             "due_date": "2025-01-15",
             "priority": "high",
             "status": "pending",
+            "tags": ["work", "urgent"],
             "user_id": "987e6543-e21b-12d3-a456-426614174000",
             "created_at": "2025-12-11T10:30:00Z",
             "updated_at": "2025-12-11T10:30:00Z"
@@ -99,10 +102,11 @@ async def create_task(
     response_model=PaginatedTasksResponse,
     summary="List user's tasks with filtering, sorting, and pagination",
     description="Get tasks owned by the authenticated user with pagination support. "
-    "Supports filtering by status (pending, completed, overdue), "
+    "Supports filtering by status (pending, completed, overdue) and tags, "
     "sorting by various fields (due_date, priority, status, created_at), "
     "and pagination (skip, limit). "
-    "Returns paginated response with metadata.",
+    "Returns paginated response with metadata. "
+    "Tag filtering uses AND logic (task must have ALL specified tags).",
 )
 async def list_tasks(
     current_user: CurrentUserDep,
@@ -111,6 +115,10 @@ async def list_tasks(
         None,
         alias="status",
         description="Filter by status: pending, completed, or overdue (pending tasks with due_date < today)",
+    ),
+    tags: list[str] | None = Query(
+        None,
+        description="Filter by tags (AND logic - task must have ALL specified tags). Can specify multiple times: ?tags=work&tags=urgent",
     ),
     sort_by: TaskSortBy | None = Query(
         None,
@@ -132,12 +140,13 @@ async def list_tasks(
         description="Maximum number of tasks to return (default 20, max 100)",
     ),
 ) -> PaginatedTasksResponse:
-    """List tasks for the authenticated user with filtering, sorting, and pagination (T050, T081-T082, T151).
+    """List tasks for the authenticated user with filtering, sorting, and pagination (T050, T081-T082, T151, T037).
 
     Args:
         current_user: Authenticated user from JWT token
         session: Database session
         status_filter: Optional filter by status (pending, completed, overdue)
+        tags: Optional filter by tags (AND logic - task must have ALL specified tags)
         sort_by: Optional sort field (due_date, priority, status, created_at)
         order: Optional sort order (asc, desc)
         skip: Number of tasks to skip (pagination offset) - default 0
@@ -155,11 +164,14 @@ async def list_tasks(
         HTTPException 400: If invalid query parameter values provided
         HTTPException 401: If JWT token is invalid or missing
 
-    Query Parameters (T081-T082, T151):
+    Query Parameters (T081-T082, T151, T037):
         - status: Filter by status (pending, completed, overdue)
           - pending: Tasks with status=PENDING
           - completed: Tasks with status=COMPLETED
           - overdue: Tasks with status=PENDING AND due_date < today
+        - tags: Filter by tags (AND logic - task must have ALL specified tags)
+          - Can specify multiple times: ?tags=work&tags=urgent
+          - Empty or omitted = no tag filtering
         - sort_by: Sort field (due_date, priority, status, created_at)
           - due_date: Order by due_date (NULLs last)
           - priority: Order by priority (high → medium → low in DESC)
@@ -183,6 +195,14 @@ async def list_tasks(
         GET /api/tasks?status=pending&sort_by=due_date&order=asc&skip=0&limit=10
         Authorization: Bearer <jwt_token>
         (Returns first 10 pending tasks, sorted by due_date ascending)
+
+        GET /api/tasks?tags=work
+        Authorization: Bearer <jwt_token>
+        (Returns tasks with "work" tag)
+
+        GET /api/tasks?tags=work&tags=urgent
+        Authorization: Bearer <jwt_token>
+        (Returns tasks with BOTH "work" AND "urgent" tags - AND logic)
 
         GET /api/tasks?skip=20&limit=20
         Authorization: Bearer <jwt_token>
@@ -214,6 +234,7 @@ async def list_tasks(
         session=session,
         user_id=current_user.user_id,
         status=status_filter,
+        tags=tags,
         sort_by=sort_by,
         order=order,
         skip=skip,
@@ -225,6 +246,7 @@ async def list_tasks(
         session=session,
         user_id=current_user.user_id,
         status=status_filter,
+        tags=tags,
     )
 
     # Calculate has_more
@@ -237,6 +259,47 @@ async def list_tasks(
         limit=limit,
         has_more=has_more,
     )
+
+
+@router.get(
+    "/tags",
+    response_model=list[str],
+    summary="Get all unique tags used by the authenticated user",
+    description="Get a sorted list of all unique tags across all user's tasks. "
+    "Returns an empty array if user has no tasks with tags. "
+    "Tags are sorted alphabetically.",
+)
+async def list_tags(
+    current_user: CurrentUserDep,
+    session: Session = Depends(get_session),
+) -> list[str]:
+    """Get all unique tags for the authenticated user (T052-T053, T050).
+
+    Args:
+        current_user: Authenticated user from JWT token
+        session: Database session
+
+    Returns:
+        list[str]: Unique tags sorted alphabetically. Empty list if no tags found.
+
+    Raises:
+        HTTPException 401: If JWT token is invalid or missing
+
+    Example Request:
+        GET /api/tasks/tags
+        Authorization: Bearer <jwt_token>
+
+    Example Response (200 OK):
+        ["home", "personal", "urgent", "work"]
+
+    Example Response (200 OK - no tags):
+        []
+    """
+    tags = await task_service.get_user_tags(
+        session=session,
+        user_id=current_user.user_id,
+    )
+    return tags
 
 
 @router.get(
@@ -316,6 +379,7 @@ async def get_task(
     summary="Update a task",
     description="Update a task by ID. User must own the task. "
     "All fields are optional (partial update supported). "
+    "Tags can be updated (max 10 tags, 1-50 chars each, lowercase alphanumeric + hyphens). "
     "Returns 404 if task not found or not owned by user "
     "(doesn't distinguish for security).",
 )
@@ -347,6 +411,7 @@ async def update_task(
         - due_date: If provided, must be valid ISO 8601 date format
         - priority: If provided, must be valid enum (low, medium, high)
         - status: If provided, must be valid enum (pending, completed)
+        - tags: If provided, max 10 tags, 1-50 chars each, format ^[a-z0-9-]+$
 
     Security (T104-T105):
         For security reasons, we return 404 for both "not found" and
@@ -366,7 +431,8 @@ async def update_task(
         Authorization: Bearer <jwt_token>
         {
             "title": "Complete project proposal (UPDATED)",
-            "priority": "high"
+            "priority": "high",
+            "tags": ["work", "urgent", "important"]
         }
 
     Example Response (200 OK):
@@ -377,6 +443,7 @@ async def update_task(
             "due_date": "2025-01-15",
             "priority": "high",
             "status": "pending",
+            "tags": ["work", "urgent", "important"],
             "user_id": "987e6543-e21b-12d3-a456-426614174000",
             "created_at": "2025-12-11T10:30:00Z",
             "updated_at": "2025-12-11T14:45:00Z"

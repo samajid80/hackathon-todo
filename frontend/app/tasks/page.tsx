@@ -67,11 +67,17 @@ export default function TasksPage() {
 
   // Filter and sort state
   const [filterStatus, setFilterStatus] = useState<FilterStatus>("all");
+  const [filterTags, setFilterTags] = useState<string[]>([]); // T044: Tag filtering state
   const [sortBy, setSortBy] = useState<SortField>("created_at");
   const [sortOrder, setSortOrder] = useState<SortOrder>("desc");
 
   // Ref to track current task count for pagination
   const tasksCountRef = useRef(0);
+
+  // T044: Get available tags from all tasks
+  const availableTags = Array.from(
+    new Set(tasks.flatMap((task) => task.tags || []))
+  ).sort();
 
   const fetchTasks = useCallback(async (append = false) => {
     try {
@@ -82,9 +88,15 @@ export default function TasksPage() {
         setIsLoadingMore(true);
       }
 
-      // Build filter and sort parameters
-      const filter =
-        filterStatus !== "all" ? { status: filterStatus } : undefined;
+      // Build filter and sort parameters (T044: Include tags)
+      const filter: any = {};
+      if (filterStatus !== "all") {
+        filter.status = filterStatus;
+      }
+      if (filterTags.length > 0) {
+        filter.tags = filterTags;
+      }
+      const finalFilter = Object.keys(filter).length > 0 ? filter : undefined;
       const sort = { sortBy, order: sortOrder };
 
       // T151: Calculate pagination skip based on current tasks
@@ -92,7 +104,7 @@ export default function TasksPage() {
       const skip = append ? tasksCountRef.current : 0;
       const pagination = { skip, limit: TASKS_PER_PAGE };
 
-      const data = await getTasks(filter, sort, pagination);
+      const data = await getTasks(finalFilter, sort, pagination);
 
       // T151: Handle paginated response
       if (append) {
@@ -126,7 +138,7 @@ export default function TasksPage() {
       setIsLoading(false);
       setIsLoadingMore(false);
     }
-  }, [filterStatus, sortBy, sortOrder]);
+  }, [filterStatus, filterTags, sortBy, sortOrder]); // T044: Added filterTags to dependencies
 
   // T151: Load more tasks
   const loadMoreTasks = () => {
@@ -238,19 +250,32 @@ export default function TasksPage() {
     setFilterStatus(newFilter);
   };
 
+  // T044: Handle tag filter changes
+  const handleTagsChange = (newTags: string[]) => {
+    setFilterTags(newTags);
+  };
+
   const handleSortChange = (newSortBy: SortField, newOrder: SortOrder) => {
     setSortBy(newSortBy);
     setSortOrder(newOrder);
   };
 
+  // T044: Clear all filters including tags
   const handleClearFilters = () => {
     setFilterStatus("all");
+    setFilterTags([]);
     setSortBy("created_at");
     setSortOrder("desc");
   };
 
+  // T044: Check if any filters are active (including tags)
   const isFiltersActive = () => {
-    return filterStatus !== "all" || sortBy !== "created_at" || sortOrder !== "desc";
+    return (
+      filterStatus !== "all" ||
+      filterTags.length > 0 ||
+      sortBy !== "created_at" ||
+      sortOrder !== "desc"
+    );
   };
 
   // Get empty state message based on filter
@@ -448,13 +473,16 @@ export default function TasksPage() {
           </Link>
         </div>
 
-        {/* Filters and Sort */}
+        {/* Filters and Sort (T044: Added tag filtering) */}
         <div className="mb-6 flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
           <TaskFilters
             selectedFilter={filterStatus}
             onFilterChange={handleFilterChange}
             onClearFilters={handleClearFilters}
             canClearFilters={isFiltersActive()}
+            selectedTags={filterTags}
+            onTagsChange={handleTagsChange}
+            availableTags={availableTags}
           />
           <TaskSort
             sortBy={sortBy}
@@ -533,13 +561,16 @@ export default function TasksPage() {
         </Link>
       </div>
 
-      {/* Filters and Sort */}
+      {/* Filters and Sort (T044: Added tag filtering) */}
       <div className="mb-6 flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
         <TaskFilters
           selectedFilter={filterStatus}
           onFilterChange={handleFilterChange}
           onClearFilters={handleClearFilters}
           canClearFilters={isFiltersActive()}
+          selectedTags={filterTags}
+          onTagsChange={handleTagsChange}
+          availableTags={availableTags}
         />
         <TaskSort
           sortBy={sortBy}

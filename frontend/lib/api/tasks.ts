@@ -280,7 +280,7 @@ export async function createTask(task: TaskCreate): Promise<Task> {
 }
 
 /**
- * Get all tasks for the authenticated user with optional filters, sorting, and pagination (T151)
+ * Get all tasks for the authenticated user with optional filters, sorting, and pagination (T151, T043)
  */
 export async function getTasks(
   filter?: TaskFilter,
@@ -292,6 +292,13 @@ export async function getTasks(
   // Add filter parameters
   if (filter?.status && filter.status !== "all") {
     params.append("status", filter.status);
+  }
+
+  // T043: Add tag filter parameters (multiple tags use AND logic)
+  if (filter?.tags && filter.tags.length > 0) {
+    filter.tags.forEach((tag) => {
+      params.append("tags", tag);
+    });
   }
 
   // Add sort parameters
@@ -354,4 +361,11 @@ export async function deleteTask(taskId: string): Promise<void> {
   return apiRequest<void>(`/api/tasks/${taskId}`, {
     method: "DELETE",
   });
+}
+
+/**
+ * Get all unique tags used by the authenticated user (T055)
+ */
+export async function getUserTags(): Promise<string[]> {
+  return apiRequest<string[]>("/api/tasks/tags");
 }
