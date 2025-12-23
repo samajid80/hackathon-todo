@@ -1,9 +1,12 @@
 """Task SQLModel definitions and Pydantic schemas with input validation (T157)."""
 
+import re
 from datetime import date, datetime
 from uuid import UUID, uuid4
 
 from pydantic import field_validator
+from sqlalchemy import Column, String, Text
+from sqlalchemy.dialects.postgresql import ARRAY
 from sqlmodel import Field, Index, SQLModel
 
 from .enums import Priority, Status
@@ -21,6 +24,10 @@ class TaskBase(SQLModel):
     due_date: date | None = Field(default=None)
     priority: Priority = Field(default=Priority.MEDIUM)
     status: Status = Field(default=Status.PENDING)
+    tags: list[str] = Field(
+        default_factory=list,
+        sa_column=Column(ARRAY(Text)),
+    )
 
     @field_validator("title")
     @classmethod
@@ -120,6 +127,72 @@ class TaskBase(SQLModel):
         # We just pass through the value
         return v
 
+    @field_validator("tags")
+    @classmethod
+    def validate_tags(cls, v: list[str]) -> list[str]:
+        """Validate and normalize tags field.
+
+        Validation Rules:
+            - Max 10 tags per task
+            - Each tag: 1-50 characters
+            - Format: ^[a-z0-9-]+$ (lowercase alphanumeric + hyphens)
+            - Automatic lowercase conversion
+            - Automatic whitespace trimming
+            - Automatic deduplication
+
+        Args:
+            v: List of tag strings from user input
+
+        Returns:
+            list[str]: Validated and normalized tag list
+
+        Raises:
+            ValueError: If validation fails
+
+        Examples:
+            ["Work", "  urgent  ", "work"] -> ["work", "urgent"]
+            ["tag1", "tag2", ..., "tag11"] -> ValueError("Maximum 10 tags allowed per task")
+            ["urgent!!!"] -> ValueError("Tags can only contain lowercase letters, numbers, and hyphens")
+        """
+        if not v:
+            return []
+
+        # Step 1: Normalize all tags first (trim and lowercase)
+        normalized_tags = []
+        for tag in v:
+            # Trim and lowercase
+            tag = tag.strip().lower()
+
+            # Skip empty tags
+            if not tag:
+                continue
+
+            normalized_tags.append(tag)
+
+        # Step 2: Remove duplicates while preserving order (after normalization)
+        unique_tags = list(dict.fromkeys(normalized_tags))
+
+        # Step 3: Validate max count
+        if len(unique_tags) > 10:
+            raise ValueError("Maximum 10 tags allowed per task")
+
+        # Step 4: Validate each tag (length and format)
+        validated_tags = []
+        for tag in unique_tags:
+            # Validate length
+            if len(tag) < 1 or len(tag) > 50:
+                raise ValueError(f"Tag must be 1-50 characters long, got '{tag}' ({len(tag)} chars)")
+
+            # Validate format
+            if not re.match(r"^[a-z0-9-]+$", tag):
+                raise ValueError(
+                    f"Tags can only contain lowercase letters, numbers, and hyphens: '{tag}'"
+                )
+
+            validated_tags.append(tag)
+
+        return validated_tags
+
 
 class Task(TaskBase, table=True):
     """Task ORM model for database table.
@@ -194,6 +267,7 @@ class TaskUpdate(SQLModel):
         - due_date: If provided, valid ISO 8601 date format
         - priority: If provided, enum validation
         - status: If provided, enum validation
+        - tags: If provided, max 10 tags, 1-50 chars each, format ^[a-z0-9-]+$
 
     Example Request (partial update):
         {
@@ -210,6 +284,7 @@ class TaskUpdate(SQLModel):
     due_date: date | None = None
     priority: Priority | None = None
     status: Status | None = None
+    tags: list[str] | None = None
 
     @field_validator("title")
     @classmethod
@@ -263,6 +338,26 @@ class TaskUpdate(SQLModel):
             return None
 
         return v
+
+    @field_validator("tags")
+    @classmethod
+    def validate_tags(cls, v: list[str] | None) -> list[str] | None:
+        """Validate tags for updates (same rules as TaskBase).
+
+        Args:
+            v: List of tag strings from user input (optional)
+
+        Returns:
+            Optional[list[str]]: Validated and normalized tag list or None
+
+        Raises:
+            ValueError: If validation fails
+        """
+        if v is None:
+            return None
+
+        # Apply same validation as TaskBase
+        return TaskBase.validate_tags(v)
 
 
 class TaskRead(TaskBase):

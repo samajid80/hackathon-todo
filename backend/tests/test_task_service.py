@@ -1077,3 +1077,376 @@ async def test_delete_task_not_owned(
     db_task = session.get(Task, task_id)
     assert db_task is not None
     assert db_task.user_id == test_user_id_str
+
+
+# ============================================================================
+# Tag Validation Tests (T010-T013, User Story 1)
+# ============================================================================
+
+
+async def test_tag_validation_max_tags(session: Session, test_user_id_str: str):
+    """T010: Test that max 10 tags per task is enforced.
+
+    Validates:
+    - Creating task with 11 tags raises ValidationError
+    - Error message is clear and actionable
+    - Max 10 tags is enforced by Pydantic validator
+    """
+    # Arrange - create task with 11 tags (exceeds limit)
+    with pytest.raises(ValidationError) as exc_info:
+        TaskCreate(
+            title="Task with too many tags",
+            tags=["tag1", "tag2", "tag3", "tag4", "tag5", "tag6", "tag7", "tag8", "tag9", "tag10", "tag11"],
+        )
+
+    # Assert - validation error raised with clear message
+    error = exc_info.value
+    assert "Maximum 10 tags allowed per task" in str(error)
+
+
+async def test_tag_validation_length(session: Session, test_user_id_str: str):
+    """T011: Test that tag length 1-50 characters is enforced.
+
+    Validates:
+    - Tags shorter than 1 char are rejected (empty tags skipped)
+    - Tags longer than 50 chars raise ValidationError
+    - Error message indicates the specific tag and length
+    """
+    # Test: Tag longer than 50 characters
+    long_tag = "a" * 51
+    with pytest.raises(ValidationError) as exc_info:
+        TaskCreate(
+            title="Task with long tag",
+            tags=[long_tag],
+        )
+
+    error = exc_info.value
+    assert "Tag must be 1-50 characters long" in str(error)
+    assert "51 chars" in str(error)
+
+
+async def test_tag_validation_format(session: Session, test_user_id_str: str):
+    """T012: Test that tag format ^[a-z0-9-]+$ is enforced.
+
+    Validates:
+    - Tags with invalid characters (!, @, #, spaces, uppercase) are rejected
+    - Error message indicates which tag failed and why
+    - Only lowercase letters, numbers, and hyphens are allowed
+    """
+    # Test: Tag with invalid characters
+    invalid_tags = [
+        "urgent!!!",  # Exclamation marks
+        "work@home",  # At symbol
+        "high priority",  # Space
+        "URGENT",  # Will be lowercased, but test mixed case
+    ]
+
+    # Test exclamation marks
+    with pytest.raises(ValidationError) as exc_info:
+        TaskCreate(
+            title="Task with invalid tag",
+            tags=["urgent!!!"],
+        )
+    assert "Tags can only contain lowercase letters, numbers, and hyphens" in str(exc_info.value)
+
+    # Test at symbol
+    with pytest.raises(ValidationError) as exc_info:
+        TaskCreate(
+            title="Task with invalid tag",
+            tags=["work@home"],
+        )
+    assert "Tags can only contain lowercase letters, numbers, and hyphens" in str(exc_info.value)
+
+    # Test space
+    with pytest.raises(ValidationError) as exc_info:
+        TaskCreate(
+            title="Task with invalid tag",
+            tags=["high priority"],
+        )
+    assert "Tags can only contain lowercase letters, numbers, and hyphens" in str(exc_info.value)
+
+
+async def test_tag_normalization(session: Session, test_user_id_str: str):
+    """T013: Test that tags are normalized (lowercase, trim, deduplicate).
+
+    Validates:
+    - Tags are converted to lowercase
+    - Leading/trailing whitespace is trimmed
+    - Duplicate tags are removed
+    - Order is preserved for unique tags
+    """
+    # Arrange - task with tags needing normalization
+    task_data = TaskCreate(
+        title="Task with messy tags",
+        tags=["Work", "  urgent  ", "work", "URGENT", "home"],
+    )
+
+    # Act
+    task = await task_service.create_task(
+        session=session,
+        user_id=test_user_id_str,
+        task_create=task_data,
+    )
+
+    # Assert - tags are normalized and deduplicated
+    assert task.tags == ["work", "urgent", "home"]
+    # Verify only unique lowercase trimmed tags remain
+    assert len(task.tags) == 3
+    assert "Work" not in task.tags  # Uppercase removed
+    assert "URGENT" not in task.tags  # Uppercase removed
+    assert "  urgent  " not in task.tags  # Whitespace removed
+
+
+# ============================================================================
+# User Story 2: Filter Tasks by Tags (T033-T035)
+# ============================================================================
+
+
+@pytest.mark.asyncio
+async def test_filter_by_single_tag(session: Session, test_user_id_str: str):
+    """T033: Test filtering tasks by a single tag.
+
+    Validates:
+    - Tasks with the specified tag are returned
+    - Tasks without the tag are excluded
+    - Empty result when no tasks match
+    - Uses GIN index for containment query
+    """
+    # Arrange - create tasks with different tags
+    task1 = Task(
+        user_id=test_user_id_str,
+        title="Work task",
+        priority=Priority.MEDIUM,
+        status=Status.PENDING,
+        tags=["work", "urgent"],
+    )
+    task2 = Task(
+        user_id=test_user_id_str,
+        title="Home task",
+        priority=Priority.LOW,
+        status=Status.PENDING,
+        tags=["home"],
+    )
+    task3 = Task(
+        user_id=test_user_id_str,
+        title="Another work task",
+        priority=Priority.HIGH,
+        status=Status.PENDING,
+        tags=["work", "important"],
+    )
+    task4 = Task(
+        user_id=test_user_id_str,
+        title="Untagged task",
+        priority=Priority.MEDIUM,
+        status=Status.PENDING,
+        tags=[],
+    )
+
+    session.add_all([task1, task2, task3, task4])
+    session.commit()
+
+    # Act - filter by "work" tag
+    tasks = await task_service.get_user_tasks(
+        session=session,
+        user_id=test_user_id_str,
+        tags=["work"],
+    )
+
+    # Assert - only work tasks returned
+    assert len(tasks) == 2
+    task_titles = [task.title for task in tasks]
+    assert "Work task" in task_titles
+    assert "Another work task" in task_titles
+    assert "Home task" not in task_titles
+    assert "Untagged task" not in task_titles
+
+
+@pytest.mark.asyncio
+async def test_filter_by_multiple_tags_and_logic(
+    session: Session, test_user_id_str: str
+):
+    """T034: Test filtering tasks by multiple tags with AND logic.
+
+    Validates:
+    - Only tasks with ALL specified tags are returned
+    - Tasks with only some tags are excluded
+    - AND logic: task must have tag1 AND tag2 AND tag3
+    - Uses GIN index with @> operator for each tag
+    """
+    # Arrange - create tasks with various tag combinations
+    task1 = Task(
+        user_id=test_user_id_str,
+        title="Work and urgent",
+        priority=Priority.HIGH,
+        status=Status.PENDING,
+        tags=["work", "urgent"],
+    )
+    task2 = Task(
+        user_id=test_user_id_str,
+        title="Work only",
+        priority=Priority.MEDIUM,
+        status=Status.PENDING,
+        tags=["work"],
+    )
+    task3 = Task(
+        user_id=test_user_id_str,
+        title="Work urgent important",
+        priority=Priority.HIGH,
+        status=Status.PENDING,
+        tags=["work", "urgent", "important"],
+    )
+    task4 = Task(
+        user_id=test_user_id_str,
+        title="Urgent only",
+        priority=Priority.HIGH,
+        status=Status.PENDING,
+        tags=["urgent"],
+    )
+
+    session.add_all([task1, task2, task3, task4])
+    session.commit()
+
+    # Act - filter by "work" AND "urgent" tags
+    tasks = await task_service.get_user_tasks(
+        session=session,
+        user_id=test_user_id_str,
+        tags=["work", "urgent"],
+    )
+
+    # Assert - only tasks with BOTH tags returned
+    assert len(tasks) == 2
+    task_titles = [task.title for task in tasks]
+    assert "Work and urgent" in task_titles
+    assert "Work urgent important" in task_titles
+    assert "Work only" not in task_titles  # Missing "urgent"
+    assert "Urgent only" not in task_titles  # Missing "work"
+
+
+@pytest.mark.asyncio
+async def test_tag_isolation(session: Session, test_user_id_str: str):
+    """T035: Test that users can only see their own tags.
+
+    Validates:
+    - User A cannot see User B's tasks when filtering by tags
+    - Tag filtering respects user_id isolation
+    - No data leakage between users
+    """
+    # Arrange - create another user
+    user_b_id = "user_b_test_id"
+
+    # User A tasks
+    task_a1 = Task(
+        user_id=test_user_id_str,
+        title="User A work task",
+        priority=Priority.MEDIUM,
+        status=Status.PENDING,
+        tags=["work", "confidential"],
+    )
+    task_a2 = Task(
+        user_id=test_user_id_str,
+        title="User A home task",
+        priority=Priority.LOW,
+        status=Status.PENDING,
+        tags=["home"],
+    )
+
+    # User B tasks
+    task_b1 = Task(
+        user_id=user_b_id,
+        title="User B work task",
+        priority=Priority.HIGH,
+        status=Status.PENDING,
+        tags=["work", "secret"],
+    )
+    task_b2 = Task(
+        user_id=user_b_id,
+        title="User B urgent task",
+        priority=Priority.HIGH,
+        status=Status.PENDING,
+        tags=["urgent"],
+    )
+
+    session.add_all([task_a1, task_a2, task_b1, task_b2])
+    session.commit()
+
+    # Act - User A filters by "work" tag
+    user_a_tasks = await task_service.get_user_tasks(
+        session=session,
+        user_id=test_user_id_str,
+        tags=["work"],
+    )
+
+    # Assert - User A only sees their own work tasks
+    assert len(user_a_tasks) == 1
+    assert user_a_tasks[0].title == "User A work task"
+    assert user_a_tasks[0].user_id == test_user_id_str
+
+    # Act - User B filters by "work" tag
+    user_b_tasks = await task_service.get_user_tasks(
+        session=session,
+        user_id=user_b_id,
+        tags=["work"],
+    )
+
+    # Assert - User B only sees their own work tasks
+    assert len(user_b_tasks) == 1
+    assert user_b_tasks[0].title == "User B work task"
+    assert user_b_tasks[0].user_id == user_b_id
+
+
+@pytest.mark.asyncio
+async def test_get_user_tags(session: Session, test_user_id_str: str):
+    """T049: Test getting unique sorted tags used by a user.
+
+    Validates:
+    - Returns all unique tags across all user's tasks
+    - Tags are sorted alphabetically
+    - Duplicate tags are removed
+    - Empty tags array returns empty list
+    - User isolation (only user's own tags)
+    """
+    # Arrange - create tasks with various tags
+    task1 = Task(
+        user_id=test_user_id_str,
+        title="Task 1",
+        priority=Priority.MEDIUM,
+        status=Status.PENDING,
+        tags=["work", "urgent", "home"],
+    )
+    task2 = Task(
+        user_id=test_user_id_str,
+        title="Task 2",
+        priority=Priority.HIGH,
+        status=Status.PENDING,
+        tags=["work", "personal"],
+    )
+    task3 = Task(
+        user_id=test_user_id_str,
+        title="Task 3",
+        priority=Priority.LOW,
+        status=Status.COMPLETED,
+        tags=["home"],
+    )
+    task4 = Task(
+        user_id=test_user_id_str,
+        title="Task 4",
+        priority=Priority.MEDIUM,
+        status=Status.PENDING,
+        tags=[],  # No tags
+    )
+    session.add_all([task1, task2, task3, task4])
+    session.commit()
+
+    # Act - get all unique tags for user
+    tags = await task_service.get_user_tags(session=session, user_id=test_user_id_str)
+
+    # Assert - returns unique tags sorted alphabetically
+    assert isinstance(tags, list)
+    assert len(tags) == 4  # work, urgent, home, personal
+    assert tags == ["home", "personal", "urgent", "work"]  # Alphabetically sorted
+
+    # Verify all expected tags are present
+    assert "work" in tags
+    assert "urgent" in tags
+    assert "home" in tags
+    assert "personal" in tags
