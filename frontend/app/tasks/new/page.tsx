@@ -20,13 +20,14 @@
 
 "use client";
 
-import React, { useState, FormEvent, ChangeEvent } from "react";
+import React, { useState, FormEvent, ChangeEvent, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createTask } from "@/lib/api/tasks";
 import { TaskCreate, Priority } from "@/types/task";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { TagSelector, TagSelectorRef } from "@/components/TagSelector";
 
 interface FormErrors {
   title?: string;
@@ -36,12 +37,14 @@ interface FormErrors {
 
 export default function NewTaskPage() {
   const router = useRouter();
+  const tagSelectorRef = useRef<TagSelectorRef>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     title: "",
     description: "",
     due_date: "",
     priority: "medium" as Priority,
+    tags: [] as string[],
   });
   const [errors, setErrors] = useState<FormErrors>({});
   const [touched, setTouched] = useState<Record<string, boolean>>({});
@@ -136,6 +139,11 @@ export default function NewTaskPage() {
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
+    // Add any pending tag in the input field before submitting
+    if (tagSelectorRef.current) {
+      tagSelectorRef.current.addPendingTag();
+    }
+
     // Mark all fields as touched
     setTouched({
       title: true,
@@ -157,6 +165,7 @@ export default function NewTaskPage() {
         description: formData.description || null,
         due_date: formData.due_date || null,
         priority: formData.priority,
+        tags: formData.tags,
       };
       await createTask(taskData);
       // Redirect to tasks page with success message
@@ -384,6 +393,22 @@ export default function NewTaskPage() {
               Optional: Set a deadline for this task
             </p>
           )}
+        </div>
+
+        {/* Tags field (T026) */}
+        <div>
+          <label
+            htmlFor="tags"
+            className="block text-sm font-medium text-gray-700 mb-1"
+          >
+            Tags
+          </label>
+          <TagSelector
+            ref={tagSelectorRef}
+            selectedTags={formData.tags}
+            onChange={(tags) => setFormData((prev) => ({ ...prev, tags }))}
+            placeholder="Add tags (e.g., work, urgent, personal)"
+          />
         </div>
 
         {/* Form actions */}

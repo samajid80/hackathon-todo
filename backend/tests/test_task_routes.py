@@ -757,3 +757,414 @@ def test_delete_task_invalid_uuid_format(
 
     # Assert - FastAPI validation error
     assert response.status_code == 422
+
+
+# ============================================================================
+# Tag Integration Tests (T014-T015, User Story 1)
+# ============================================================================
+
+
+def test_create_task_with_tags(
+    client: TestClient, test_jwt_token: str, test_user_id_str: str
+):
+    """T014: Test creating a task with tags via POST /api/tasks.
+
+    Validates:
+    - 201 Created status
+    - Tags are saved and returned in response
+    - Tags are normalized (lowercase, trimmed, deduplicated)
+    - Tags persist in database
+    """
+    # Arrange
+    task_data = {
+        "title": "Complete project proposal",
+        "description": "Write and submit the Q1 project proposal",
+        "tags": ["work", "urgent"],
+    }
+
+    # Act
+    response = client.post(
+        "/api/tasks",
+        json=task_data,
+        headers={"Authorization": f"Bearer {test_jwt_token}"},
+    )
+
+    # Assert
+    assert response.status_code == 201
+    data = response.json()
+    assert "tags" in data
+    assert data["tags"] == ["work", "urgent"]
+    assert data["title"] == "Complete project proposal"
+    
+    # Verify tags are persisted
+    task_id = data["id"]
+    get_response = client.get(
+        f"/api/tasks/{task_id}",
+        headers={"Authorization": f"Bearer {test_jwt_token}"},
+    )
+    assert get_response.status_code == 200
+    assert get_response.json()["tags"] == ["work", "urgent"]
+
+
+def test_create_task_with_tags_normalization(
+    client: TestClient, test_jwt_token: str, test_user_id_str: str
+):
+    """T014: Test that tags are normalized when creating a task.
+
+    Validates:
+    - Tags converted to lowercase
+    - Whitespace trimmed
+    - Duplicates removed
+    """
+    # Arrange - tags with mixed case, whitespace, duplicates
+    task_data = {
+        "title": "Task with messy tags",
+        "tags": ["Work", "  urgent  ", "work", "URGENT", "home"],
+    }
+
+    # Act
+    response = client.post(
+        "/api/tasks",
+        json=task_data,
+        headers={"Authorization": f"Bearer {test_jwt_token}"},
+    )
+
+    # Assert
+    assert response.status_code == 201
+    data = response.json()
+    assert data["tags"] == ["work", "urgent", "home"]
+
+
+def test_create_task_with_invalid_tags_max_10(
+    client: TestClient, test_jwt_token: str
+):
+    """T014: Test creating a task with more than 10 tags fails.
+
+    Validates:
+    - 422 Unprocessable Entity (validation error from Pydantic)
+    - Clear error message about max 10 tags
+    """
+    # Arrange - 11 tags (exceeds limit)
+    task_data = {
+        "title": "Task with too many tags",
+        "tags": ["tag1", "tag2", "tag3", "tag4", "tag5", "tag6", "tag7", "tag8", "tag9", "tag10", "tag11"],
+    }
+
+    # Act
+    response = client.post(
+        "/api/tasks",
+        json=task_data,
+        headers={"Authorization": f"Bearer {test_jwt_token}"},
+    )
+
+    # Assert
+    assert response.status_code == 422
+    error_data = response.json()
+    # FastAPI returns validation errors as a list of error objects
+    assert "Maximum 10 tags allowed per task" in str(error_data["detail"])
+
+
+def test_create_task_with_invalid_tags_format(
+    client: TestClient, test_jwt_token: str
+):
+    """T014: Test creating a task with invalid tag format fails.
+
+    Validates:
+    - 422 Unprocessable Entity for tags with invalid characters
+    - Clear error message about allowed characters
+    """
+    # Arrange - tag with invalid characters
+    task_data = {
+        "title": "Task with invalid tag",
+        "tags": ["urgent!!!"],
+    }
+
+    # Act
+    response = client.post(
+        "/api/tasks",
+        json=task_data,
+        headers={"Authorization": f"Bearer {test_jwt_token}"},
+    )
+
+    # Assert
+    assert response.status_code == 422
+    error_data = response.json()
+    # FastAPI returns validation errors as a list of error objects
+    assert "Tags can only contain lowercase letters, numbers, and hyphens" in str(error_data["detail"])
+
+
+def test_update_task_tags(
+    client: TestClient, session: Session, test_jwt_token: str, test_user_id_str: str
+):
+    """T015: Test updating task tags via PUT /api/tasks/{task_id}.
+
+    Validates:
+    - 200 OK status
+    - Tags are updated in response
+    - Tags persist in database
+    - Can add, remove, and replace tags
+    """
+    # Arrange - create task with initial tags
+    task = Task(
+        user_id=test_user_id_str,
+        title="Task to update",
+        priority=Priority.MEDIUM,
+        status=Status.PENDING,
+        tags=["work"],
+    )
+    session.add(task)
+    session.commit()
+    session.refresh(task)
+
+    # Act - update tags
+    update_data = {
+        "tags": ["work", "urgent", "important"],
+    }
+    response = client.put(
+        f"/api/tasks/{task.id}",
+        json=update_data,
+        headers={"Authorization": f"Bearer {test_jwt_token}"},
+    )
+
+    # Assert
+    assert response.status_code == 200
+    data = response.json()
+    assert data["tags"] == ["work", "urgent", "important"]
+    
+    # Verify tags are persisted
+    get_response = client.get(
+        f"/api/tasks/{task.id}",
+        headers={"Authorization": f"Bearer {test_jwt_token}"},
+    )
+    assert get_response.status_code == 200
+    assert get_response.json()["tags"] == ["work", "urgent", "important"]
+
+
+def test_update_task_remove_all_tags(
+    client: TestClient, session: Session, test_jwt_token: str, test_user_id_str: str
+):
+    """T015: Test removing all tags from a task.
+
+    Validates:
+    - Can set tags to empty array
+    - Tags are removed from database
+    """
+    # Arrange - create task with tags
+    task = Task(
+        user_id=test_user_id_str,
+        title="Task with tags",
+        priority=Priority.MEDIUM,
+        status=Status.PENDING,
+        tags=["work", "urgent"],
+    )
+    session.add(task)
+    session.commit()
+    session.refresh(task)
+
+    # Act - remove all tags
+    update_data = {
+        "tags": [],
+    }
+    response = client.put(
+        f"/api/tasks/{task.id}",
+        json=update_data,
+        headers={"Authorization": f"Bearer {test_jwt_token}"},
+    )
+
+    # Assert
+    assert response.status_code == 200
+    data = response.json()
+    assert data["tags"] == []
+
+
+def test_update_task_tags_with_invalid_format(
+    client: TestClient, session: Session, test_jwt_token: str, test_user_id_str: str
+):
+    """T015: Test updating tags with invalid format fails.
+
+    Validates:
+    - 422 Unprocessable Entity for invalid tag format
+    - Clear error message
+    """
+    # Arrange - create task
+    task = Task(
+        user_id=test_user_id_str,
+        title="Task",
+        priority=Priority.MEDIUM,
+        status=Status.PENDING,
+        tags=[],
+    )
+    session.add(task)
+    session.commit()
+    session.refresh(task)
+
+    # Act - update with invalid tag
+    update_data = {
+        "tags": ["work@home"],
+    }
+    response = client.put(
+        f"/api/tasks/{task.id}",
+        json=update_data,
+        headers={"Authorization": f"Bearer {test_jwt_token}"},
+    )
+
+    # Assert
+    assert response.status_code == 422
+    error_data = response.json()
+    # FastAPI returns validation errors as a list of error objects
+    assert "Tags can only contain lowercase letters, numbers, and hyphens" in str(error_data["detail"])
+
+
+def test_filter_tasks_by_tags(
+    client: TestClient, session: Session, test_jwt_token: str, test_user_id_str: str
+):
+    """T036: Test filtering tasks by tags via API endpoint.
+
+    Validates:
+    - GET /api/tasks?tags=work returns tasks with "work" tag
+    - GET /api/tasks?tags=work&tags=urgent uses AND logic (must have BOTH tags)
+    - Correct tasks returned in each case
+    - HTTP 200 status and proper JSON response format
+    """
+    # Arrange - create tasks with different tag combinations
+    task1 = Task(
+        user_id=test_user_id_str,
+        title="Work task",
+        priority=Priority.MEDIUM,
+        status=Status.PENDING,
+        tags=["work"],
+    )
+    task2 = Task(
+        user_id=test_user_id_str,
+        title="Work urgent task",
+        priority=Priority.HIGH,
+        status=Status.PENDING,
+        tags=["work", "urgent"],
+    )
+    task3 = Task(
+        user_id=test_user_id_str,
+        title="Home task",
+        priority=Priority.LOW,
+        status=Status.PENDING,
+        tags=["home"],
+    )
+    task4 = Task(
+        user_id=test_user_id_str,
+        title="Urgent task",
+        priority=Priority.HIGH,
+        status=Status.PENDING,
+        tags=["urgent"],
+    )
+    session.add_all([task1, task2, task3, task4])
+    session.commit()
+
+    # Act & Assert - filter by single tag "work"
+    response = client.get(
+        "/api/tasks",
+        params={"tags": "work"},
+        headers={"Authorization": f"Bearer {test_jwt_token}"},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert isinstance(data, dict)
+    assert "items" in data
+    items = data["items"]
+    assert len(items) == 2
+    titles = [task["title"] for task in items]
+    assert "Work task" in titles
+    assert "Work urgent task" in titles
+    assert "Home task" not in titles
+    assert "Urgent task" not in titles
+
+    # Act & Assert - filter by multiple tags "work" AND "urgent" (AND logic)
+    response = client.get(
+        "/api/tasks",
+        params={"tags": ["work", "urgent"]},
+        headers={"Authorization": f"Bearer {test_jwt_token}"},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert isinstance(data, dict)
+    assert "items" in data
+    items = data["items"]
+    assert len(items) == 1
+    assert items[0]["title"] == "Work urgent task"
+    assert set(items[0]["tags"]) == {"work", "urgent"}
+
+    # Act & Assert - filter by tag that matches no tasks
+    response = client.get(
+        "/api/tasks",
+        params={"tags": "nonexistent"},
+        headers={"Authorization": f"Bearer {test_jwt_token}"},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert isinstance(data, dict)
+    assert "items" in data
+    items = data["items"]
+    assert len(items) == 0
+
+
+def test_list_tags_endpoint(
+    client: TestClient, session: Session, test_jwt_token: str, test_user_id_str: str
+):
+    """T050: Test GET /api/tasks/tags endpoint returns unique sorted tags.
+
+    Validates:
+    - GET /api/tasks/tags returns all unique tags used by user
+    - Tags are sorted alphabetically
+    - Duplicate tags are removed
+    - Empty result when user has no tasks with tags
+    - User isolation (only user's own tags)
+    - HTTP 200 status and proper JSON array response
+    """
+    # Arrange - create tasks with various tags
+    task1 = Task(
+        user_id=test_user_id_str,
+        title="Task 1",
+        priority=Priority.MEDIUM,
+        status=Status.PENDING,
+        tags=["work", "urgent", "home"],
+    )
+    task2 = Task(
+        user_id=test_user_id_str,
+        title="Task 2",
+        priority=Priority.HIGH,
+        status=Status.PENDING,
+        tags=["work", "personal"],
+    )
+    task3 = Task(
+        user_id=test_user_id_str,
+        title="Task 3",
+        priority=Priority.LOW,
+        status=Status.COMPLETED,
+        tags=["home"],
+    )
+    task4 = Task(
+        user_id=test_user_id_str,
+        title="Task 4",
+        priority=Priority.MEDIUM,
+        status=Status.PENDING,
+        tags=[],  # No tags
+    )
+    session.add_all([task1, task2, task3, task4])
+    session.commit()
+
+    # Act - get all tags via API
+    response = client.get(
+        "/api/tasks/tags",
+        headers={"Authorization": f"Bearer {test_jwt_token}"},
+    )
+
+    # Assert - returns unique sorted tags
+    assert response.status_code == 200
+    tags = response.json()
+    assert isinstance(tags, list)
+    assert len(tags) == 4  # work, urgent, home, personal
+    assert tags == ["home", "personal", "urgent", "work"]  # Alphabetically sorted
+
+    # Verify all expected tags are present
+    assert "work" in tags
+    assert "urgent" in tags
+    assert "home" in tags
+    assert "personal" in tags

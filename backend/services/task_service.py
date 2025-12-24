@@ -50,6 +50,7 @@ async def create_task(session: Session, user_id: str, task_create: TaskCreate) -
         due_date=task_create.due_date,
         priority=task_create.priority.value if task_create.priority else Priority.MEDIUM.value,
         status=task_create.status.value if task_create.status else Status.PENDING.value,
+        tags=task_create.tags,
         user_id=user_id,
     )
 
@@ -65,17 +66,19 @@ async def get_user_tasks(
     session: Session,
     user_id: str,
     status: TaskStatusFilter | None = None,
+    tags: list[str] | None = None,
     sort_by: TaskSortBy | None = None,
     order: SortOrder | None = None,
     skip: int = 0,
     limit: int = 20,
 ) -> list[Task]:
-    """Get all tasks for a user with filtering, sorting, and pagination (T077-T080, T151).
+    """Get all tasks for a user with filtering, sorting, and pagination (T077-T080, T151, T038).
 
     Args:
         session: Database session
         user_id: str of the task owner
         status: Optional filter by status (pending, completed, overdue)
+        tags: Optional filter by tags (AND logic - task must have ALL specified tags)
         sort_by: Optional sort field (due_date, priority, status, created_at)
         order: Optional sort order (asc, desc)
         skip: Number of tasks to skip (pagination offset) - default 0
@@ -88,15 +91,18 @@ async def get_user_tasks(
     Index Usage (T150):
         - Base query (user_id only): Uses user_id single-column index
         - Status filter queries: Use idx_user_status composite index (user_id, status)
+        - Tag filter queries: Use idx_tasks_tags GIN index for @> containment operator
         - Due date sorting: Uses idx_user_due_date composite index (user_id, due_date)
         - Priority/status sorting: Uses user_id index + in-memory sort
         - Overdue filter: Uses idx_user_status + idx_due_date for due_date comparison
 
-    Filter Logic (T077-T078):
+    Filter Logic (T077-T078, T038):
         - status='pending': Returns tasks with status=PENDING
         - status='completed': Returns tasks with status=COMPLETED
         - status='overdue': Returns tasks with status=PENDING AND due_date < today
-        - status=None: Returns all tasks (no filter)
+        - status=None: Returns all tasks (no status filter)
+        - tags=['work', 'urgent']: Returns tasks with BOTH "work" AND "urgent" tags (AND logic)
+        - tags=None or tags=[]: Returns all tasks (no tag filter)
 
     Sort Logic (T079-T080):
         - sort_by='due_date': Order by due_date (NULLs last)
@@ -114,6 +120,7 @@ async def get_user_tasks(
         This function enforces user isolation by filtering on user_id.
         Users can only see their own tasks.
         Overdue is a computed status, not stored in database.
+        Tag filtering uses PostgreSQL @> operator for efficient array containment checking.
     """
     # Start with base query: all user's tasks
     # Uses: user_id single-column index (or composite index if available)
@@ -136,6 +143,14 @@ async def get_user_tasks(
                 Task.due_date.is_not(None),
                 Task.due_date < today,
             )
+
+    # Apply tag filter (T038)
+    # Uses: idx_tasks_tags GIN index for @> containment operator (efficient array matching)
+    if tags is not None and len(tags) > 0:
+        # PostgreSQL @> operator: Check if task's tags array contains ALL specified tags (AND logic)
+        # Example: tags=['work', 'urgent'] matches task with tags=['work', 'urgent', 'home']
+        # but does NOT match task with tags=['work'] or tags=['urgent'] alone
+        statement = statement.where(Task.tags.contains(tags))
 
     # Apply sorting (T079-T080)
     # Default: created_at DESC (newest first)
@@ -197,13 +212,15 @@ async def get_task_count(
     session: Session,
     user_id: str,
     status: TaskStatusFilter | None = None,
+    tags: list[str] | None = None,
 ) -> int:
-    """Get total count of tasks for a user with optional status filter (T151).
+    """Get total count of tasks for a user with optional status and tag filters (T151, T038).
 
     Args:
         session: Database session
         user_id: str of the task owner
         status: Optional filter by status (pending, completed, overdue)
+        tags: Optional filter by tags (AND logic - task must have ALL specified tags)
 
     Returns:
         int: Total count of tasks matching filters
@@ -211,6 +228,7 @@ async def get_task_count(
     Index Usage (T150):
         - Base query (user_id only): Uses user_id single-column index
         - Status filter queries: Use idx_user_status composite index (user_id, status)
+        - Tag filter queries: Use idx_tasks_tags GIN index for @> containment operator
 
     Note:
         This is used for pagination metadata (total count, has_more calculation).
@@ -237,9 +255,53 @@ async def get_task_count(
                 Task.due_date < today,
             )
 
+    # Apply tag filter (T038) - same logic as get_user_tasks
+    if tags is not None and len(tags) > 0:
+        statement = statement.where(Task.tags.contains(tags))
+
     # Count results
     tasks = session.exec(statement).all()
     return len(tasks)
+
+
+async def get_user_tags(
+    session: Session,
+    user_id: str,
+) -> list[str]:
+    """Get all unique tags used by a user, sorted alphabetically (T051, T049).
+
+    Args:
+        session: Database session
+        user_id: str of the task owner
+
+    Returns:
+        list[str]: Unique tags sorted alphabetically. Empty list if no tags found.
+
+    Index Usage:
+        - Uses: idx_tasks_tags GIN index for efficient array unnesting
+        - Uses: user_id index for filtering
+
+    Implementation:
+        Uses PostgreSQL unnest() to extract all tags from all user's tasks,
+        then DISTINCT to get unique values, and ORDER BY for alphabetical sorting.
+
+    Note:
+        This function enforces user isolation by filtering on user_id.
+        Users can only see tags from their own tasks.
+    """
+    # SQL: SELECT DISTINCT unnest(tags) as tag FROM tasks WHERE user_id = ? ORDER BY tag
+    # SQLAlchemy/SQLModel approach: Get all tasks and extract tags in Python
+    statement = select(Task).where(Task.user_id == user_id)
+    tasks = session.exec(statement).all()
+
+    # Extract all tags from all tasks and deduplicate
+    all_tags: set[str] = set()
+    for task in tasks:
+        if task.tags:
+            all_tags.update(task.tags)
+
+    # Return sorted list
+    return sorted(list(all_tags))
 
 
 async def get_task_by_id(
