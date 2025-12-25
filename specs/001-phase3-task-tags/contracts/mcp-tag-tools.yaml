@@ -1,0 +1,295 @@
+# MCP Tool Contracts: Phase 3 Task Tags Integration
+# Feature: 001-phase3-task-tags
+# Date: 2025-12-24
+# Purpose: Define MCP tool schemas for tag-related operations
+
+tools:
+  # Modified existing tool: Add tags parameter
+  list_tasks:
+    description: |
+      List user's tasks with optional filtering by tags.
+      Uses AND logic when multiple tags specified (task must have ALL tags).
+    parameters:
+      user_id:
+        type: string
+        required: true
+        description: User identifier from JWT token
+      tags:
+        type: array
+        items:
+          type: string
+          pattern: '^[a-z0-9-]{1,50}$'
+        required: false
+        description: |
+          Filter tasks by tags (AND logic - task must have ALL specified tags).
+          Each tag must be 1-50 characters, lowercase alphanumeric + hyphens only.
+          Example: ["work", "urgent"] returns tasks with BOTH "work" AND "urgent" tags.
+      completed:
+        type: boolean
+        required: false
+        description: Filter by completion status (existing parameter)
+    returns:
+      type: array
+      items:
+        type: object
+        properties:
+          id: {type: string, format: uuid}
+          user_id: {type: string, format: uuid}
+          title: {type: string}
+          description: {type: string, nullable: true}
+          due_date: {type: string, format: date, nullable: true}
+          priority: {type: string, enum: [low, medium, high]}
+          status: {type: string, enum: [pending, completed]}
+          tags: {type: array, items: {type: string}}
+          created_at: {type: string, format: date-time}
+          updated_at: {type: string, format: date-time}
+    http_mapping:
+      method: GET
+      endpoint: '{PHASE2_BACKEND_URL}/api/tasks'
+      query_params:
+        tags: '{tags}'  # Array serialized as ?tags=work&tags=urgent
+        completed: '{completed}'
+      headers:
+        Authorization: 'Bearer {jwt_token}'
+
+  # Modified existing tool: Add tags parameter
+  add_task:
+    description: |
+      Create a new task with optional tags.
+      Tags are automatically normalized (lowercase, trimmed) by Phase 2 backend.
+    parameters:
+      user_id:
+        type: string
+        required: true
+        description: User identifier from JWT token
+      title:
+        type: string
+        required: true
+        description: Task title (1-200 characters)
+      description:
+        type: string
+        required: false
+        description: Task description (0-2000 characters)
+      tags:
+        type: array
+        items:
+          type: string
+          pattern: '^[a-z0-9-]{1,50}$'
+        required: false
+        maxItems: 10
+        description: |
+          Task tags (max 10 tags, each 1-50 characters, lowercase alphanumeric + hyphens).
+          Phase 2 backend auto-normalizes (lowercase, trim, deduplicate).
+          Example: ["work", "urgent", "important"]
+    returns:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        user_id: {type: string, format: uuid}
+        title: {type: string}
+        description: {type: string, nullable: true}
+        tags: {type: array, items: {type: string}}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+    http_mapping:
+      method: POST
+      endpoint: '{PHASE2_BACKEND_URL}/api/tasks'
+      body:
+        title: '{title}'
+        description: '{description}'
+        tags: '{tags}'
+      headers:
+        Authorization: 'Bearer {jwt_token}'
+        Content-Type: 'application/json'
+
+  # Modified existing tool: Add tags parameter
+  update_task:
+    description: |
+      Update an existing task's title, description, and/or tags.
+      All parameters are optional (partial update supported).
+    parameters:
+      user_id:
+        type: string
+        required: true
+        description: User identifier from JWT token
+      task_id:
+        type: string
+        required: true
+        description: Task identifier (UUID)
+      title:
+        type: string
+        required: false
+        description: New task title (1-200 characters)
+      description:
+        type: string
+        required: false
+        description: New task description (0-2000 characters)
+      tags:
+        type: array
+        items:
+          type: string
+          pattern: '^[a-z0-9-]{1,50}$'
+        required: false
+        maxItems: 10
+        description: |
+          New tags array (replaces existing tags completely).
+          To remove all tags, pass empty array [].
+          To add/remove individual tags, fetch current tags first, modify, then update.
+    returns:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        user_id: {type: string, format: uuid}
+        title: {type: string}
+        description: {type: string, nullable: true}
+        tags: {type: array, items: {type: string}}
+        updated_at: {type: string, format: date-time}
+    http_mapping:
+      method: PUT
+      endpoint: '{PHASE2_BACKEND_URL}/api/tasks/{task_id}'
+      body:
+        title: '{title}'
+        description: '{description}'
+        tags: '{tags}'
+      headers:
+        Authorization: 'Bearer {jwt_token}'
+        Content-Type: 'application/json'
+
+  # NEW tool: Get user's unique tags
+  list_tags:
+    description: |
+      Get all unique tags used by the authenticated user across all their tasks.
+      Tags are returned alphabetically sorted.
+      Results may be cached (60s TTL in Phase 3 backend).
+    parameters:
+      user_id:
+        type: string
+        required: true
+        description: User identifier from JWT token
+    returns:
+      type: array
+      items:
+        type: string
+        pattern: '^[a-z0-9-]{1,50}$'
+      description: |
+        Alphabetically sorted list of unique tags.
+        Empty array if user has no tags.
+        Example: ["home", "personal", "urgent", "work"]
+    http_mapping:
+      method: GET
+      endpoint: '{PHASE2_BACKEND_URL}/api/tasks/tags'
+      headers:
+        Authorization: 'Bearer {jwt_token}'
+    caching:
+      enabled: true
+      ttl_seconds: 60
+      invalidation_triggers:
+        - add_task (if tags present)
+        - update_task (if tags present)
+        - delete_task (always, task may have had tags)
+
+# NLP Extraction Patterns (for MCP server implementation)
+nlp_patterns:
+  tag_addition_explicit:
+    patterns:
+      - 'tagged with {tags}'
+      - 'tag(s): {tags}'
+      - 'with tags {tags}'
+      - 'add tags {tags}'
+    examples:
+      - "add task buy milk tagged with home"
+      - "create task with tags work, urgent"
+      - "new task: prepare presentation (tags: work, important)"
+    confidence: 0.9
+
+  tag_addition_implicit:
+    patterns:
+      - 'tag this with {tag}'
+      - 'add tag {tag}'
+      - 'label this {tag}'
+    examples:
+      - "tag this with urgent"
+      - "add tag important to this task"
+    confidence: 0.85
+
+  tag_filtering:
+    patterns:
+      - 'show {tag} tasks'
+      - '{tag} tasks'
+      - 'tasks tagged with {tag}'
+      - 'filter by {tag}'
+    examples:
+      - "show me work tasks"
+      - "list urgent tasks"
+      - "show tasks tagged with home"
+    confidence: 0.8
+
+  tag_listing:
+    patterns:
+      - 'what tags do I have?'
+      - 'list my tags'
+      - 'show all tags'
+      - 'my tags'
+    examples:
+      - "what tags do I have?"
+      - "show me all my tags"
+    confidence: 0.95
+
+  tag_removal:
+    patterns:
+      - 'remove {tag} tag'
+      - 'untag {tag}'
+      - 'delete tag {tag}'
+      - 'remove all tags'
+    examples:
+      - "remove the urgent tag from this task"
+      - "untag this from work"
+      - "remove all tags"
+    confidence: 0.85
+
+# Validation Rules (enforced by MCP server before calling Phase 2)
+validation:
+  tag_format:
+    regex: '^[a-z0-9-]+$'
+    min_length: 1
+    max_length: 50
+    normalization:
+      - trim_whitespace
+      - to_lowercase
+    error_messages:
+      empty: "Tag cannot be empty"
+      too_long: "Tag must be 1-50 characters long"
+      invalid_chars: "Tags can only contain lowercase letters, numbers, and hyphens"
+
+  tag_count:
+    max_tags_per_task: 10
+    error_message: "Maximum 10 tags allowed per task"
+
+  confidence_threshold:
+    min_confidence: 0.70
+    clarification_prompt: "I'm not sure I understood. Could you clarify which tags you want to add/filter by?"
+
+# Error Handling
+error_codes:
+  TAG_VALIDATION_FAILED:
+    code: 400
+    message: "Tag validation failed: {details}"
+    examples:
+      - "Tag validation failed: Tag 'URGENT!!!' contains invalid characters"
+      - "Tag validation failed: Maximum 10 tags allowed per task"
+
+  TAG_EXTRACTION_LOW_CONFIDENCE:
+    code: 200  # Not an error, but triggers clarification
+    message: "Could you clarify which tags you're referring to?"
+    log_level: info
+
+  PHASE2_BACKEND_ERROR:
+    code: 502
+    message: "Unable to complete tag operation. Please try again."
+    log_level: error
+    retry: true
+
+  CACHE_INVALIDATION_FAILED:
+    code: 200  # Non-fatal, cache will expire naturally
+    message: null  # Silent failure
+    log_level: warning

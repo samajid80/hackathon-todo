@@ -48,8 +48,9 @@ function getDbSync(): Kysely<any> {
 
   // Add connection parameters optimized for Neon serverless
   const url = new URL(baseConnectionString);
+  url.searchParams.set('sslmode', 'require'); // Required for Neon
   url.searchParams.set('statement_timeout', '30000'); // 30 second query timeout
-  url.searchParams.set('connect_timeout', '10'); // 10 second connection timeout (faster fail)
+  url.searchParams.set('connect_timeout', '15'); // 15 second connection timeout
   url.searchParams.set('application_name', 'phase3-frontend');
   const connectionString = url.toString();
 
@@ -60,10 +61,10 @@ function getDbSync(): Kysely<any> {
     connectionString: connectionString,
     ssl: { rejectUnauthorized: false },
     // Conservative settings optimized for Neon serverless
-    max: 10, // Reduced to avoid connection limits
-    min: 2, // Keep minimum connections warm
+    max: 5, // Limit concurrent connections
+    min: 0, // Don't maintain idle connections (create on demand)
     idleTimeoutMillis: 30000, // 30 seconds
-    connectionTimeoutMillis: 10000, // 10 seconds (fail fast)
+    connectionTimeoutMillis: 20000, // 20 seconds (allow more time for Neon)
     // Keepalive for serverless environment
     keepAlive: true,
     keepAliveInitialDelayMillis: 10000,
@@ -86,7 +87,7 @@ function getDbSync(): Kysely<any> {
       console.error('[Phase3 Auth] ✗ Warmup failed (will retry on first request):', err?.message);
     });
 
-  console.log('[Phase3 Auth] Pool created (max:10, min:2)');
+  console.log('[Phase3 Auth] Pool created (max:5, min:0, on-demand connections)');
 
   return db;
 }

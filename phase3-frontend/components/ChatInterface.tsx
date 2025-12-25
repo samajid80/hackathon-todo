@@ -99,7 +99,7 @@ export default function ChatInterface() {
               Welcome to your AI Todo Assistant!
             </p>
             <p className="text-sm">
-              Try saying: &quot;Add a task to buy groceries&quot; or &quot;Show me my tasks&quot;
+              Try saying: "Add a task to buy groceries" or "Show me my tasks"
             </p>
           </div>
         )}
