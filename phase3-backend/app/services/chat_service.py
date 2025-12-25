@@ -8,7 +8,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlmodel import select
 from typing import List, Optional
 from uuid import UUID
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.models.chat import Conversation, Message
 from app.db import get_session
@@ -43,7 +43,7 @@ class ChatService:
 
             if conversation:
                 # Update timestamp
-                conversation.updated_at = datetime.utcnow()
+                conversation.updated_at = datetime.now(timezone.utc)
                 self.session.add(conversation)
                 return conversation
 

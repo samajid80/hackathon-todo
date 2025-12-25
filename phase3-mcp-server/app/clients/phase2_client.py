@@ -30,6 +30,7 @@ class Phase2Client:
         description: str = "",
         due_date: Optional[str] = None,
         priority: Optional[str] = None,
+        tags: Optional[List[str]] = None,
         jwt_token: Optional[str] = None
     ) -> Dict[str, Any]:
         """
@@ -41,6 +42,7 @@ class Phase2Client:
             description: Task description (optional, 0-2000 chars)
             due_date: Due date in ISO 8601 format (YYYY-MM-DD) (optional)
             priority: Priority level: "low", "medium", or "high" (optional, default: "medium")
+            tags: Optional list of tags (max 10 tags, 1-50 chars each, lowercase alphanumeric + hyphens)
             jwt_token: Optional JWT token for authentication
 
         Returns:
@@ -59,6 +61,8 @@ class Phase2Client:
             payload["due_date"] = due_date
         if priority is not None:
             payload["priority"] = priority
+        if tags is not None:
+            payload["tags"] = tags
 
         response = await self.client.post(
             url,
@@ -72,6 +76,7 @@ class Phase2Client:
         self,
         user_id: str,
         completed: Optional[bool] = None,
+        tags: Optional[List[str]] = None,
         jwt_token: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """
@@ -80,6 +85,7 @@ class Phase2Client:
         Args:
             user_id: User identifier
             completed: Optional filter by completion status
+            tags: Optional filter by tags (AND logic: task must have all tags)
             jwt_token: Optional JWT token for authentication
 
         Returns:
@@ -96,6 +102,9 @@ class Phase2Client:
         params = {}
         if completed is not None:
             params["completed"] = str(completed).lower()
+        if tags:
+            # Phase 2 backend expects tags as comma-separated query param
+            params["tags"] = ",".join(tags)
 
         response = await self.client.get(url, params=params, headers=headers)
         response.raise_for_status()
@@ -178,6 +187,7 @@ class Phase2Client:
         description: Optional[str] = None,
         due_date: Optional[str] = None,
         priority: Optional[str] = None,
+        tags: Optional[List[str]] = None,
         jwt_token: Optional[str] = None
     ) -> Dict[str, Any]:
         """
@@ -190,6 +200,7 @@ class Phase2Client:
             description: New description (optional)
             due_date: New due date in ISO 8601 format YYYY-MM-DD (optional)
             priority: New priority level: "low", "medium", or "high" (optional)
+            tags: New tags list (optional, replaces existing tags)
             jwt_token: Optional JWT token for authentication
 
         Returns:
@@ -212,8 +223,59 @@ class Phase2Client:
             payload["due_date"] = due_date
         if priority is not None:
             payload["priority"] = priority
+        if tags is not None:
+            payload["tags"] = tags
 
         response = await self.client.put(url, json=payload, headers=headers)
+        response.raise_for_status()
+        return response.json()
+
+    async def get_task(
+        self, user_id: str, task_id: str, jwt_token: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Get a single task by ID via Phase 2 backend.
+
+        Args:
+            user_id: User identifier
+            task_id: Task identifier
+            jwt_token: Optional JWT token for authentication
+
+        Returns:
+            Task object
+
+        Raises:
+            httpx.HTTPStatusError: If API request fails (404 if task not found)
+        """
+        url = f"{self.base_url}/api/tasks/{task_id}"
+        headers = {}
+        if jwt_token:
+            headers["Authorization"] = f"Bearer {jwt_token}"
+
+        response = await self.client.get(url, headers=headers)
+        response.raise_for_status()
+        return response.json()
+
+    async def list_tags(self, user_id: str, jwt_token: Optional[str] = None) -> List[str]:
+        """
+        List all unique tags for a user via Phase 2 backend.
+
+        Args:
+            user_id: User identifier
+            jwt_token: Optional JWT token for authentication
+
+        Returns:
+            List of unique tags (alphabetically sorted)
+
+        Raises:
+            httpx.HTTPStatusError: If API request fails
+        """
+        url = f"{self.base_url}/api/tasks/tags"
+        headers = {}
+        if jwt_token:
+            headers["Authorization"] = f"Bearer {jwt_token}"
+
+        response = await self.client.get(url, headers=headers)
         response.raise_for_status()
         return response.json()
 

@@ -5,8 +5,8 @@ Defines Conversation and Message models for chatbot conversation history.
 """
 
 from sqlmodel import SQLModel, Field, Relationship, Column
-from sqlalchemy import Text
-from datetime import datetime
+from sqlalchemy import Text, DateTime
+from datetime import datetime, timezone
 from typing import Optional, List
 from uuid import UUID, uuid4
 
@@ -22,8 +22,14 @@ class Conversation(SQLModel, table=True):
 
     id: Optional[UUID] = Field(default_factory=uuid4, primary_key=True)
     user_id: str = Field(index=True)  # No FK - Better Auth manages users table
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column=Column(DateTime(timezone=True), nullable=False)
+    )
+    updated_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column=Column(DateTime(timezone=True), nullable=False)
+    )
 
     # Relationships
     messages: List["Message"] = Relationship(back_populates="conversation")
@@ -43,7 +49,10 @@ class Message(SQLModel, table=True):
     conversation_id: UUID = Field(foreign_key="conversations.id", index=True)
     role: str = Field(max_length=20)  # 'user', 'assistant', or 'system'
     content: str = Field(sa_column=Column(Text))
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column=Column(DateTime(timezone=True), nullable=False)
+    )
 
     # Relationships
     conversation: Optional[Conversation] = Relationship(back_populates="messages")

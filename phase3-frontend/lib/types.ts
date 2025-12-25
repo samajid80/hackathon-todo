@@ -35,6 +35,7 @@ export interface Task {
   title: string;
   description: string;
   completed: boolean;
+  tags: string[]; // Tag array (Phase 3 enhancement)
   created_at: string;
   updated_at: string;
 }

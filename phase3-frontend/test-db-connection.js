@@ -1,79 +1,61 @@
-/**
- * Test database connection to Neon PostgreSQL.
- *
- * This script helps diagnose connection issues, especially with Neon's
- * free tier sleep mode.
- *
- * Usage:
- *   DATABASE_URL="postgresql://..." node test-db-connection.js
- * Or:
- *   source .env.local && node test-db-connection.js
- */
-
 const { Pool } = require('pg');
+const fs = require('fs');
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false },
-  max: 3,
-  connectionTimeoutMillis: 30000,
-  statement_timeout: 20000,
-  keepAlive: true,
-});
-
-async function testConnection() {
-  console.log('[DB Test] Starting connection test...');
-  console.log('[DB Test] DATABASE_URL:', process.env.DATABASE_URL?.substring(0, 30) + '...');
-
-  try {
-    const startTime = Date.now();
-    const client = await pool.connect();
-    const connectionTime = Date.now() - startTime;
-
-    console.log(`[DB Test] ✓ Connected successfully in ${connectionTime}ms`);
-
-    // Test query
-    const queryStart = Date.now();
-    const result = await client.query('SELECT NOW()');
-    const queryTime = Date.now() - queryStart;
-
-    console.log(`[DB Test] ✓ Query executed in ${queryTime}ms`);
-    console.log('[DB Test] Server time:', result.rows[0].now);
-
-    // Test users table
-    const usersResult = await client.query('SELECT COUNT(*) FROM users');
-    console.log('[DB Test] ✓ Users table accessible, count:', usersResult.rows[0].count);
-
-    // Test session table (if exists)
-    try {
-      const sessionResult = await client.query('SELECT COUNT(*) FROM session');
-      console.log('[DB Test] ✓ Session table accessible, count:', sessionResult.rows[0].count);
-    } catch (e) {
-      console.log('[DB Test] ⚠ Session table not found (this is OK for first run)');
-    }
-
-    client.release();
-    console.log('[DB Test] ✓ Connection released');
-    console.log('[DB Test] All tests passed!');
-
-  } catch (error) {
-    console.error('[DB Test] ✗ Connection failed:', error.message);
-    if (error.code) {
-      console.error('[DB Test] Error code:', error.code);
-    }
-    throw error;
-  } finally {
-    await pool.end();
-    console.log('[DB Test] Pool closed');
+// Parse .env.local file
+const envContent = fs.readFileSync('.env.local', 'utf8');
+const envLines = envContent.split('\n');
+let dbUrl = '';
+for (const line of envLines) {
+  if (line.startsWith('DATABASE_URL=')) {
+    dbUrl = line.substring('DATABASE_URL='.length).trim();
+    // Remove quotes if present
+    dbUrl = dbUrl.replace(/^['"]|['"]$/g, '');
+    break;
   }
 }
 
-testConnection()
-  .then(() => {
-    console.log('\n[DB Test] SUCCESS - Database is accessible');
-    process.exit(0);
-  })
-  .catch((error) => {
-    console.error('\n[DB Test] FAILED - See errors above');
+if (!dbUrl) {
+  console.error('DATABASE_URL not found in .env.local');
+  process.exit(1);
+}
+
+console.log('Testing connection to:', dbUrl.substring(0, 30) + '...');
+
+const pool = new Pool({
+  connectionString: dbUrl,
+  ssl: { rejectUnauthorized: false },
+  connectionTimeoutMillis: 10000,
+  statement_timeout: 30000
+});
+
+async function testConnection() {
+  try {
+    console.log('Attempting database connection...');
+    const res = await pool.query('SELECT NOW() as current_time, version() as pg_version');
+    console.log('✓ Database connection successful');
+    console.log('Current time:', res.rows[0].current_time);
+    console.log('PostgreSQL version:', res.rows[0].pg_version.substring(0, 50));
+
+    // Check if Better Auth tables exist
+    const tablesRes = await pool.query(`
+      SELECT table_name
+      FROM information_schema.tables
+      WHERE table_schema = 'public'
+      AND table_name IN ('user', 'session', 'account', 'verification')
+      ORDER BY table_name
+    `);
+
+    console.log('\nBetter Auth tables found:');
+    tablesRes.rows.forEach(row => console.log('  -', row.table_name));
+
+    await pool.end();
+    console.log('\n✓ Test completed successfully');
+  } catch (err) {
+    console.error('✗ Database connection failed:', err.message);
+    console.error('Error code:', err.code);
+    console.error('Error details:', err);
     process.exit(1);
-  });
+  }
+}
+
+testConnection();

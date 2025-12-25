@@ -6,7 +6,7 @@ Provides consistent error formatting across all API endpoints.
 
 from pydantic import BaseModel
 from typing import Optional, Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 class ErrorDetail(BaseModel):
@@ -62,7 +62,7 @@ class ErrorResponse(BaseModel):
         error_data = {
             "code": code,
             "message": message,
-            "timestamp": datetime.utcnow().isoformat() + "Z"
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
 
         if request_id:
