@@ -16,12 +16,14 @@ class Conversation(SQLModel, table=True):
     Represents a chat conversation between a user and the AI assistant.
 
     Each conversation contains multiple messages and belongs to a single user.
+    ChatKit sessions are mapped via session_id for persistent conversation history.
     """
 
     __tablename__ = "conversations"
 
     id: Optional[UUID] = Field(default_factory=uuid4, primary_key=True)
     user_id: str = Field(index=True)  # No FK - Better Auth manages users table
+    session_id: Optional[str] = Field(default=None, unique=True, index=True)  # ChatKit session mapping
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False)

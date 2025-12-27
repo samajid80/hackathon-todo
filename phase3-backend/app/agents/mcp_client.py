@@ -90,6 +90,9 @@ class MCPClient:
         user_id: str,
         title: str,
         description: str = "",
+        due_date: Optional[str] = None,
+        priority: Optional[str] = None,
+        tags: Optional[list[str]] = None,
         jwt_token: Optional[str] = None
     ) -> Dict[str, Any]:
         """
@@ -99,16 +102,23 @@ class MCPClient:
             user_id: User identifier
             title: Task title
             description: Task description (optional)
+            due_date: Due date in YYYY-MM-DD format (optional)
+            priority: Priority level: "low", "medium", or "high" (optional)
+            tags: List of tags (optional)
             jwt_token: Optional JWT token
 
         Returns:
             Created task object
         """
-        return await self.invoke_tool(
-            "add_task",
-            {"user_id": user_id, "title": title, "description": description},
-            jwt_token
-        )
+        params = {"user_id": user_id, "title": title, "description": description}
+        if due_date is not None:
+            params["due_date"] = due_date
+        if priority is not None:
+            params["priority"] = priority
+        if tags is not None:
+            params["tags"] = tags
+
+        return await self.invoke_tool("add_task", params, jwt_token)
 
     async def list_tasks(
         self,
@@ -164,6 +174,9 @@ class MCPClient:
         task_id: str,
         title: Optional[str] = None,
         description: Optional[str] = None,
+        due_date: Optional[str] = None,
+        priority: Optional[str] = None,
+        tags: Optional[list[str]] = None,
         jwt_token: Optional[str] = None
     ) -> Dict[str, Any]:
         """
@@ -174,6 +187,9 @@ class MCPClient:
             task_id: Task identifier
             title: New title (optional)
             description: New description (optional)
+            due_date: New due date in YYYY-MM-DD format (optional)
+            priority: New priority level: "low", "medium", or "high" (optional)
+            tags: New tags list (optional, replaces existing tags)
             jwt_token: Optional JWT token
 
         Returns:
@@ -184,6 +200,12 @@ class MCPClient:
             params["title"] = title
         if description is not None:
             params["description"] = description
+        if due_date is not None:
+            params["due_date"] = due_date
+        if priority is not None:
+            params["priority"] = priority
+        if tags is not None:
+            params["tags"] = tags
 
         return await self.invoke_tool("update_task", params, jwt_token)
 

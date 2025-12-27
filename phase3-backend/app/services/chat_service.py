@@ -53,6 +53,41 @@ class ChatService:
         await self.session.flush()  # Get conversation.id
         return conversation
 
+    async def get_or_create_conversation_by_session(
+        self,
+        user_id: str,
+        session_id: str
+    ) -> Conversation:
+        """
+        Get existing conversation by ChatKit session_id or create new one.
+
+        Args:
+            user_id: User identifier from JWT
+            session_id: ChatKit session ID
+
+        Returns:
+            Conversation object (existing or newly created)
+        """
+        # Try to find existing conversation by session_id
+        statement = select(Conversation).where(
+            Conversation.session_id == session_id,
+            Conversation.user_id == user_id
+        )
+        result = await self.session.execute(statement)
+        conversation = result.scalar_one_or_none()
+
+        if conversation:
+            # Update timestamp
+            conversation.updated_at = datetime.now(timezone.utc)
+            self.session.add(conversation)
+            return conversation
+
+        # Create new conversation with session_id
+        conversation = Conversation(user_id=user_id, session_id=session_id)
+        self.session.add(conversation)
+        await self.session.flush()  # Get conversation.id
+        return conversation
+
     async def save_message(
         self,
         user_id: str,

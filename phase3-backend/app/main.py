@@ -11,7 +11,7 @@ import asyncio
 
 from app.config import settings
 from app.db import init_db, get_session
-from app.routes import health, chat
+from app.routes import health, chatkit
 from app.auth.rate_limiter import RateLimitMiddleware
 
 
@@ -60,6 +60,10 @@ async def lifespan(app: FastAPI):
         raise ValueError(
             "OPENAI_API_KEY must be configured in environment variables"
         )
+
+    # Set OPENAI_API_KEY as environment variable for Agents SDK
+    import os
+    os.environ["OPENAI_API_KEY"] = settings.openai_api_key
     print("✅ OpenAI API key configured")
 
     # Verify MCP server URL is configured
@@ -110,7 +114,7 @@ app.add_middleware(RateLimitMiddleware)
 
 # Include routers
 app.include_router(health.router, tags=["Health"])
-app.include_router(chat.router, tags=["Chat"])
+app.include_router(chatkit.router, tags=["ChatKit"])
 
 
 @app.get("/")

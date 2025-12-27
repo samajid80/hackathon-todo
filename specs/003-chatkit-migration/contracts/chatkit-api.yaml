@@ -1,0 +1,247 @@
+openapi: 3.1.0
+info:
+  title: ChatKit Migration API
+  description: API contracts for Phase 3 ChatKit integration endpoints
+  version: 1.0.0
+  contact:
+    name: Phase 3 Team
+
+servers:
+  - url: http://localhost:8001
+    description: Local development (phase3-backend)
+  - url: https://phase3-backend.railway.app
+    description: Production (Railway)
+
+paths:
+  /api/chatkit/session:
+    post:
+      summary: Create ChatKit Session
+      description: |
+        Creates a new ChatKit session with embedded user_id metadata.
+        Requires valid Better-Auth JWT token in Authorization header.
+        Returns client_secret for frontend ChatKit initialization.
+      operationId: createChatKitSession
+      tags:
+        - ChatKit
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Session created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - client_secret
+                properties:
+                  client_secret:
+                    type: string
+                    description: ChatKit session token for frontend
+                    example: "ck_session_abc123xyz..."
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /chatkit:
+    post:
+      summary: ChatKit Message Endpoint
+      description: |
+        Handles ChatKit protocol messages from frontend.
+        Processes user input, calls OpenAI with MCP tools, returns assistant response.
+        This endpoint is called by ChatKit infrastructure, not directly by frontend code.
+      operationId: handleChatKitMessage
+      tags:
+        - ChatKit
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatKitRequest'
+      responses:
+        '200':
+          description: Message processed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatKitResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Better-Auth JWT token (EdDSA algorithm, 24-hour expiry)
+
+  schemas:
+    ChatKitRequest:
+      type: object
+      description: ChatKit protocol request (handled by chatkit-python SDK)
+      required:
+        - session_id
+        - messages
+      properties:
+        session_id:
+          type: string
+          description: ChatKit session identifier
+          example: "session_abc123"
+        messages:
+          type: array
+          description: Conversation history including new user message
+          items:
+            $ref: '#/components/schemas/ChatKitMessage'
+        metadata:
+          type: object
+          description: Optional request metadata
+          additionalProperties: true
+
+    ChatKitMessage:
+      type: object
+      required:
+        - role
+        - content
+      properties:
+        role:
+          type: string
+          enum: [user, assistant, system]
+          description: Message sender role
+        content:
+          type: string
+          description: Message text content
+          minLength: 1
+          maxLength: 2000
+          example: "Add a task to buy groceries tomorrow"
+
+    ChatKitResponse:
+      type: object
+      description: ChatKit protocol response with assistant message
+      required:
+        - message
+      properties:
+        message:
+          type: string
+          description: Assistant's response text
+          example: "Task 'buy groceries' created successfully with due date tomorrow."
+        is_partial:
+          type: boolean
+          description: True for progressive streaming updates, false for final response
+          default: false
+        widgets:
+          type: array
+          description: Optional UI widgets for rich display (e.g., task lists)
+          items:
+            $ref: '#/components/schemas/Widget'
+        metadata:
+          type: object
+          description: Optional response metadata
+          additionalProperties: true
+
+    Widget:
+      type: object
+      description: Custom UI widget for rich task displays
+      required:
+        - type
+        - data
+      properties:
+        type:
+          type: string
+          enum: [list, card, table]
+          description: Widget display type
+          example: "list"
+        data:
+          type: object
+          description: Widget-specific data structure
+          additionalProperties: true
+          example:
+            items:
+              - title: "Buy groceries"
+                status: "pending"
+              - title: "Call mom"
+                status: "completed"
+
+    Error:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+          description: Error code
+          example: "unauthorized"
+        message:
+          type: string
+          description: Human-readable error message
+          example: "Invalid or expired JWT token"
+        request_id:
+          type: string
+          description: Request ID for debugging
+          example: "req_abc123xyz"
+
+  responses:
+    BadRequest:
+      description: Invalid request parameters
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "validation_error"
+            message: "Message content cannot be empty"
+            request_id: "req_abc123"
+
+    Unauthorized:
+      description: Missing or invalid authentication
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "unauthorized"
+            message: "Invalid or expired JWT token"
+            request_id: "req_def456"
+
+    RateLimitExceeded:
+      description: Too many requests
+      headers:
+        Retry-After:
+          schema:
+            type: integer
+          description: Seconds to wait before retrying
+          example: 60
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "rate_limit_exceeded"
+            message: "Too many requests. Please retry after 60 seconds."
+            request_id: "req_ghi789"
+
+    InternalServerError:
+      description: Server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "internal_server_error"
+            message: "An unexpected error occurred. Please try again."
+            request_id: "req_jkl012"
+
+tags:
+  - name: ChatKit
+    description: ChatKit session and message handling endpoints
