@@ -158,3 +158,23 @@ export async function deleteConversation(conversationId: string): Promise<void> 
     method: "DELETE",
   });
 }
+
+/**
+ * Get ChatKit session client secret for authenticated user.
+ *
+ * Called by ChatKit's useChatKit hook getClientSecret callback.
+ *
+ * @returns Promise resolving to client_secret string for ChatKit initialization
+ */
+export async function getChatKitSession(): Promise<string> {
+  const response = await apiRequest<{ client_secret: string }>("/api/chatkit/session", {
+    method: "POST",
+  });
+  return response.client_secret;
+}
+
+/**
+ * Export getAuthToken for use in ChatKit configuration.
+ * Allows ChatKit to access JWT token directly without re-fetching.
+ */
+export { getAuthToken };
