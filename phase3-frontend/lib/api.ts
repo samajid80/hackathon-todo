@@ -12,7 +12,12 @@ import type {
   APIError,
 } from "./types";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8001";
+const API_BASE_URL = (() => {
+  if (!process.env.NEXT_PUBLIC_BACKEND_URL && process.env.NODE_ENV === 'production') {
+    throw new Error('NEXT_PUBLIC_BACKEND_URL must be set in production');
+  }
+  return process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8001";
+})();
 
 // Token cache with 5-minute TTL to avoid redundant session fetches
 let cachedToken: { token: string; expiry: number } | null = null;

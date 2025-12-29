@@ -14,7 +14,7 @@ import { getAuthToken } from "@/lib/api";
 export default function ChatPage() {
   const { control } = useChatKit({
     api: {
-      url: "http://localhost:8001/chatkit",
+      url: `${process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8001"}/chatkit`,
       domainKey: "dev-domain-key", // Any string works for local development
       fetch: async (input, init) => {
         // Add JWT authorization to all ChatKit requests
