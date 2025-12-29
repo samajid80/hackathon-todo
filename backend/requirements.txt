@@ -28,6 +28,7 @@ PyJWT==2.7.0  # For auth
 python-dotenv==1.2.1
 python-jose==3.5.0
 python-multipart==0.0.20  # For file uploads
+requests==2.31.0  # For JWKS fetching in auth
 rsa==4.9.1  # For python-jose
 six==1.16.0
 SQLAlchemy==2.0.45
