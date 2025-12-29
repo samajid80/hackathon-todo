@@ -96,8 +96,9 @@ In Railway dashboard:
 
 #### Step 4: Configure Build Settings
 
-Railway auto-detects Python, but verify:
-- **Start Command**: `uvicorn backend.main:app --host 0.0.0.0 --port $PORT`
+Railway auto-detects Python and uses the configuration from `railway.json`:
+- **Start Command**: `uvicorn main:app --host 0.0.0.0 --port $PORT`
+- **Note**: When deploying the `backend/` folder, Railway treats it as the root directory, so we use `main:app` instead of `backend.main:app`
 - **Build Command**: `pip install -e .`
 
 #### Step 5: Deploy
