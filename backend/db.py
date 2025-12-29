@@ -163,6 +163,6 @@ def create_db_and_tables() -> None:
         msg = "Database engine not initialized. Set DATABASE_URL environment variable."
         raise ValueError(msg)
 
-    from .models.task import Task  # noqa: F401 - Import required for table creation
+    from models.task import Task  # noqa: F401 - Import required for table creation
 
     SQLModel.metadata.create_all(engine)
