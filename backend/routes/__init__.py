@@ -1,5 +1,5 @@
 """API route handlers for REST endpoints."""
 
-from . import tasks
+from routes import tasks
 
 __all__ = ["tasks"]

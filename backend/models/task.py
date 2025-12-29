@@ -9,7 +9,7 @@ from sqlalchemy import Column, String, Text
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlmodel import Field, Index, SQLModel
 
-from .enums import Priority, Status
+from models.enums import Priority, Status
 
 
 class TaskBase(SQLModel):

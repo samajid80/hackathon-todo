@@ -1,8 +1,8 @@
 """Database models and Pydantic schemas."""
 
-from .enums import Priority, Status
-from .task import Task, TaskCreate, TaskRead, TaskUpdate
-from .user import User
+from models.enums import Priority, Status
+from models.task import Task, TaskCreate, TaskRead, TaskUpdate
+from models.user import User
 
 __all__ = [
     "Priority",

@@ -10,11 +10,11 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from pydantic import BaseModel
 from sqlmodel import Session
 
-from ..auth.jwt_middleware import CurrentUserDep
-from ..db import get_session
-from ..models.enums import SortOrder, TaskSortBy, TaskStatusFilter
-from ..models.task import Task, TaskCreate, TaskRead, TaskUpdate
-from ..services import task_service
+from auth.jwt_middleware import CurrentUserDep
+from db import get_session
+from models.enums import SortOrder, TaskSortBy, TaskStatusFilter
+from models.task import Task, TaskCreate, TaskRead, TaskUpdate
+from services import task_service
 
 # Create router with tags for OpenAPI documentation
 router = APIRouter(prefix="/tasks", tags=["tasks"])
